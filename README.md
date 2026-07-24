@@ -4,6 +4,24 @@ Reference firmware for **OAPA-compatible automated polar alignment platforms**, 
 
 An OAPA platform sits between tripod and mount and adjusts the mount's **altitude and azimuth** with two stepper motors. TPPA measures the polar alignment error by plate solving and drives the platform automatically until the configured tolerance is reached — fully hands-off.
 
+## Supported platforms
+
+The firmware is **platform-agnostic**: it drives two stepper motors in steps and knows nothing about the mechanics attached to them. Any design that converts two motor rotations into altitude and azimuth adjustments of the mount can be used, for example:
+
+- **Wedge-style platforms** — a tilting plate for altitude and a rotating base for azimuth, placed between tripod and mount
+- **Lead-screw / linear-actuator designs** — a screw pushing the altitude plate, a second one (or a rotary stage) for azimuth
+- **Worm-gear or belt-reduction rotary stages** on both axes
+- **Motorized alt-az adjuster retrofits** — motors replacing the manual alt/az adjustment knobs of an existing wedge or mount base
+
+None of the mechanical parameters (gear ratio, screw pitch, reduction, microstepping) need to be configured in the firmware: the plugin's **Self-Calibration** measures the actual steps-to-sky response and the backlash of each axis directly on the sky, and the correction step sizes scale automatically with the measured error. This also means high gear reductions (1:20, 1:100, …) for heavy payloads work out of the box — they only change the calibrated response, which is learned, not configured.
+
+Practical requirements for the mechanics:
+
+- Both axes must be able to move **in both directions** while under the full load of the mount and rig
+- A total adjustment range of **±1-2°** per axis is plenty (TPPA gets you within that range by hand first)
+- Backlash is acceptable — it is measured during Self-Calibration and compensated — but the axes must not slip or shift under load
+- An endstop on the altitude axis is optional (used only for homing); azimuth may rotate freely
+
 ## Hardware
 
 The reference implementation targets:
