@@ -43,15 +43,15 @@
 #define Y_STEP_PIN 33
 #define Y_DIR_PIN 32
 
-// Endstops — optional, per axis. The FYSETC E4 exposes X-min (GPIO34) and
-// Y-min (GPIO35). Defaults match the reference build: altitude has a switch,
-// azimuth rotates freely (360 deg) and homes by zeroing in place.
+// Endstops — optional, per axis, all DISABLED by default: without a switch
+// an axis simply zeroes in place on $H. The FYSETC E4 exposes X-min (GPIO34)
+// and Y-min (GPIO35) if your build has reference switches.
 //
 // ESP32 hardware note: GPIO34-39 are input-only pins WITHOUT internal pull
-// resistors — INPUT_PULLUP silently does nothing there. An enabled endstop
-// on these pins needs an external pull-up (switch to GND, INVERT=true) or
+// resistors — INPUT_PULLUP silently does nothing there. Before enabling an
+// endstop, wire an external pull-up (switch to GND, INVERT=true) or
 // pull-down (switch to 3V3, INVERT=false); a floating pin false-triggers.
-#define X_ENDSTOP_ENABLED true
+#define X_ENDSTOP_ENABLED false
 #define X_ENDSTOP_PIN 34
 #define X_ENDSTOP_INVERT false  // true for a normally-closed switch
 #define X_HOMING_DIR -1         // sign of motion toward the switch
