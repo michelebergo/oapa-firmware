@@ -127,6 +127,12 @@ const int HOMING_BACKOFF = 50;  // steps to retreat after triggering
 // Safety net for misconfiguration: if an enabled endstop is never seen
 // within this travel (e.g. switch not actually wired on a two-motor-only
 // build), homing gives up and zeroes in place instead of seeking forever.
+//
+// Sizing: 200000 steps = ~62 motor revolutions at 16 microsteps (~4 min at
+// HOMING_SPEED). How much platform travel that is depends on your gear
+// reduction: plenty for low ratios (~15 steps/arcmin -> hundreds of
+// degrees), but only ~3.4 deg at extreme reductions (~970 steps/arcmin).
+// If your switch sits farther than that, raise this limit accordingly.
 const long HOMING_MAX_TRAVEL = 200000;
 
 bool endstopTriggered(const Axis &axis) {
