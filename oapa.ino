@@ -124,6 +124,10 @@ String lineBuffer = ""; // partial command, filled one char per loop() pass
 
 const int HOMING_SPEED = 800;   // steps/s toward the endstop
 const int HOMING_BACKOFF = 50;  // steps to retreat after triggering
+// Safety net for misconfiguration: if an enabled endstop is never seen
+// within this travel (e.g. switch not actually wired on a two-motor-only
+// build), homing gives up and zeroes in place instead of seeking forever.
+const long HOMING_MAX_TRAVEL = 200000;
 
 bool endstopTriggered(const Axis &axis) {
   if (!axis.endstopEnabled) return false;
@@ -245,9 +249,18 @@ void homeAxis(Axis &axis) {
   Serial.print("Homing: ");
   Serial.print(axis.name);
   Serial.println(" toward endstop...");
+  long start = axis.stepper.currentPosition();
   axis.stepper.setSpeed(axis.homingDirection * HOMING_SPEED);
   while (!endstopTriggered(axis)) {
     axis.stepper.runSpeed();
+    if (labs(axis.stepper.currentPosition() - start) > HOMING_MAX_TRAVEL) {
+      axis.stepper.stop();
+      Serial.print("Homing: ");
+      Serial.print(axis.name);
+      Serial.println(" endstop not found within travel limit - check wiring/config, zeroed in place");
+      axis.stepper.setCurrentPosition(0);
+      return;
+    }
   }
   axis.stepper.stop();
   delay(100);
