@@ -1,309 +1,440 @@
 /**
- * FYSETC E4 v1.3 - Serial Communication for NINA TPPA Plugin
- * Serial Communication: 115200 baud
- * GRBL compatible protocol for NINA
+ * OAPA reference firmware - FYSETC E4 (ESP32 + dual TMC2209)
+ *
+ * Implements the OAPA wire protocol for the NINA Three Point Polar Alignment
+ * plugin. Protocol home and documentation:
+ *   https://github.com/michelebergo/oapa-firmware
+ *
+ * Wire discipline (fixed by the plugin, do not change):
+ *   - "?"  -> exactly two lines: status frame, then "ok"
+ *   - any other non-empty command -> exactly one reply line
+ *   - empty input -> no reply
+ *   - commands are newline-terminated text at 115200 baud
+ *
+ * 1.2.1: the F feed value in $J= jogs now sets the max speed for that move
+ * (clamped, steps/s; absent -> default 2000), and "!" decelerates both axes
+ * to a stop.
+ *
+ * Status frame format (verbatim):
+ *   <Status|MPos:x.xx,y.yy,0.00|V:FW_VERSION|>
+ * where Status is Idle, Run or Home. The plugin polls "?" every ~300 ms and
+ * detects motion completion by watching MPos converge - positions reported
+ * here must always be the stepper's real position, never a cached value.
+ *
+ * Axis convention: X = altitude, Y = azimuth. Endstops are optional per
+ * axis (see the endstop section): an axis with one homes against it on $H,
+ * an axis without one zeroes in place. Gear ratios and backlash are NOT
+ * configured here: the plugin's on-sky self-calibration measures them,
+ * whatever the mechanics.
  */
 
 #include <Arduino.h>
 #include <TMCStepper.h>
 #include <AccelStepper.h>
 
-// Reported in the status frame (V: field) so the plugin can detect outdated firmware.
-// Bump on every protocol-visible change.
-#define FW_VERSION "1.1.0"
+// Reported in the status frame (V: field) so the plugin can detect outdated
+// firmware. Bump on every protocol-visible change.
+#define FW_VERSION "1.2.2"
 
-#define ENABLE_PIN 25
+// ---------------------------------------------------------------------------
+// Board wiring (FYSETC E4 v1.3)
+// ---------------------------------------------------------------------------
 
-// --- TMC2209 ADDRESSES ---
-#define X_ADDR      1
-#define Y_ADDR      3
+#define ENABLE_PIN 25 // one enable line drives both TMC2209s
 
-// --- PINOUT ---
 #define X_STEP_PIN 27
-#define X_DIR_PIN  26
+#define X_DIR_PIN 26
 #define Y_STEP_PIN 33
-#define Y_DIR_PIN  32
+#define Y_DIR_PIN 32
 
-// --- ENDSTOPS ---
-// FYSETC E4 has X-min (GPIO34), Y-min (GPIO35), Z-min ports available
-#define X_ENDSTOP_PIN 34  // Using X-min port for ALT (elevation) axis homing
-// Y-min port (GPIO35): Not used - azimuth has 360° free rotation
-// Z-min port: Available if needed for future expansion
+// Endstops - optional, per axis, all DISABLED by default: without a switch
+// an axis simply zeroes in place on $H. The FYSETC E4 exposes X-min (GPIO34)
+// and Y-min (GPIO35) if your build has reference switches.
+//
+// ESP32 hardware note: GPIO34-39 are input-only pins WITHOUT internal pull
+// resistors - INPUT_PULLUP silently does nothing there. Before enabling an
+// endstop, wire an external pull-up (switch to GND, INVERT=true) or
+// pull-down (switch to 3V3, INVERT=false); a floating pin false-triggers.
+#define X_ENDSTOP_ENABLED false
+#define X_ENDSTOP_PIN 34
+#define X_ENDSTOP_INVERT false  // true for a normally-closed switch
+#define X_HOMING_DIR -1         // sign of motion toward the switch
 
-// --- UART ---
-#define SERIAL_PORT Serial1
+#define Y_ENDSTOP_ENABLED false // enable if your azimuth has a reference switch
+#define Y_ENDSTOP_PIN 35
+#define Y_ENDSTOP_INVERT false
+#define Y_HOMING_DIR -1
+
+// Soft-limit guard during normal moves (outside $H): stops an axis that is
+// driving into its triggered endstop. Off by default - enable only after the
+// external pull resistor is verified, or a floating pin will halt real moves.
+#define ENDSTOP_GUARD_ENABLED false
+
+// Both TMC2209s share one UART (half-duplex on GPIO15), addressed 1 and 3.
+#define DRIVER_SERIAL Serial1
 #define DRIVER_UART_RX 15
 #define DRIVER_UART_TX 15
 #define R_SENSE 0.11f
+#define X_DRIVER_ADDR 1
+#define Y_DRIVER_ADDR 3
 
-// --- OBJECTS ---
-TMC2209Stepper driverX(&SERIAL_PORT, R_SENSE, X_ADDR);
-TMC2209Stepper driverY(&SERIAL_PORT, R_SENSE, Y_ADDR);
+// ---------------------------------------------------------------------------
+// Axes - each axis owns its driver, its stepper and its electrical settings.
+// The protocol layer only ever talks to an Axis through the helpers below.
+// ---------------------------------------------------------------------------
 
-AccelStepper stepperX(AccelStepper::DRIVER, X_STEP_PIN, X_DIR_PIN);
-AccelStepper stepperY(AccelStepper::DRIVER, Y_STEP_PIN, Y_DIR_PIN);
+TMC2209Stepper tmcX(&DRIVER_SERIAL, R_SENSE, X_DRIVER_ADDR);
+TMC2209Stepper tmcY(&DRIVER_SERIAL, R_SENSE, Y_DRIVER_ADDR);
+AccelStepper stepX(AccelStepper::DRIVER, X_STEP_PIN, X_DIR_PIN);
+AccelStepper stepY(AccelStepper::DRIVER, Y_STEP_PIN, Y_DIR_PIN);
 
-// --- STATE ---
-float x_position = 0.0;  // Current X position in steps
-float y_position = 0.0;  // Current Y position in steps
-String machineStatus = "Idle";
-bool isHomed = false;     // System homed status
-bool isHoming = false;    // Currently executing homing
-String serialBuffer = ""; // Non-blocking serial command buffer
+struct Axis {
+  const char *name;
+  TMC2209Stepper &driver;
+  AccelStepper &stepper;
+  int runCurrent_mA;
+  float holdMultiplier;
+  int microsteps;
+  // endstop (optional)
+  bool endstopEnabled;
+  int endstopPin;
+  bool endstopInvert;
+  int homingDirection;
+};
 
-// --- CONFIGURATION ---
-int x_run_ma = 600;
-float x_hold_mult = 0.5;
-int x_microsteps = 16;
+// Hold defaults to 25% (was 50% before 1.2.2): the hold current flows in the
+// coils continuously from power-on - including the whole window before the
+// plugin connects and pushes the user's values - and heat goes with I^2, so a
+// polar-alignment platform (usually self-locking mechanics) is better served
+// by a cool motor than by holding torque it rarely needs.
+Axis xAxis = {"altitude", tmcX, stepX, 600, 0.25f, 16,
+              X_ENDSTOP_ENABLED, X_ENDSTOP_PIN, X_ENDSTOP_INVERT, X_HOMING_DIR};
+Axis yAxis = {"azimuth", tmcY, stepY, 600, 0.25f, 16,
+              Y_ENDSTOP_ENABLED, Y_ENDSTOP_PIN, Y_ENDSTOP_INVERT, Y_HOMING_DIR};
 
-int y_run_ma = 600;
-float y_hold_mult = 0.5;
-int y_microsteps = 16;
-
-// --- HOMING CONFIGURATION ---
-const int HOMING_SPEED = 800;      // Speed for homing movement
-const int HOMING_BACKOFF = 50;     // Steps to back off after hitting endstop
-const bool X_ENDSTOP_INVERT = false; // Set true if endstop is normally closed
-// Y axis has 360° free rotation, no endstop configuration needed
-
-// --- DRIVER FUNCTIONS ---
-void apply_current_x() { driverX.rms_current(x_run_ma, x_hold_mult); }
-void apply_current_y() { driverY.rms_current(y_run_ma, y_hold_mult); }
-
-// --- ENDSTOP FUNCTIONS ---
-bool isXEndstopTriggered() {
-  return digitalRead(X_ENDSTOP_PIN) == (X_ENDSTOP_INVERT ? LOW : HIGH);
+// Returns nullptr for anything that is not an axis letter.
+Axis *axisByLetter(char letter) {
+  if (letter == 'X' || letter == 'x') return &xAxis;
+  if (letter == 'Y' || letter == 'y') return &yAxis;
+  return nullptr;
 }
 
-// Y axis (azimuth) has no endstop - 360° free rotation
-
-// --- HOMING FUNCTION ---
-void performHoming() {
-  isHoming = true;
-  machineStatus = "Home";
-  
-  Serial.println("Starting homing sequence...");
-  
-  // Home X axis (ALT - Elevation)
-  Serial.println("Homing X axis (Elevation)...");
-  stepperX.setSpeed(-HOMING_SPEED); // Move toward home (negative direction)
-  while (!isXEndstopTriggered()) {
-    stepperX.runSpeed();
-  }
-  stepperX.stop();
-  delay(100);
-  
-  // Back off from endstop
-  stepperX.move(HOMING_BACKOFF);
-  while (stepperX.distanceToGo() != 0) {
-    stepperX.run();
-  }
-  
-  // Set home position
-  stepperX.setCurrentPosition(0);
-  x_position = 0.0;
-  Serial.println("X axis homed");
-  
-  // Y axis (Azimuth) - No homing needed (360° free rotation)
-  Serial.println("Y axis: No homing (360° free rotation)");
-  stepperY.setCurrentPosition(0);
-  y_position = 0.0;
-  
-  isHomed = true;
-  isHoming = false;
-  machineStatus = "Idle";
-  Serial.println("Homing complete");
-  Serial.println("ok");
+void applyDriverCurrent(Axis &axis) {
+  axis.driver.rms_current(axis.runCurrent_mA, axis.holdMultiplier);
 }
 
-// --- GRBL-STYLE STATUS FUNCTION ---
-void sendStatus() {
-  // Update positions
-  x_position = stepperX.currentPosition();
-  y_position = stepperY.currentPosition();
-  
-  // Determine status
-  if (isHoming) {
-    machineStatus = "Home";
-  } else if (stepperX.isRunning() || stepperY.isRunning()) {
-    machineStatus = "Run";
-  } else {
-    machineStatus = "Idle";
+// ---------------------------------------------------------------------------
+// Machine state
+// ---------------------------------------------------------------------------
+
+bool homed = false;
+bool homingInProgress = false;
+String lineBuffer = ""; // partial command, filled one char per loop() pass
+
+const int HOMING_SPEED = 800;   // steps/s toward the endstop
+const int HOMING_BACKOFF = 50;  // steps to retreat after triggering
+// Safety net for misconfiguration: if an enabled endstop is never seen
+// within this travel (e.g. switch not actually wired on a two-motor-only
+// build), homing gives up and zeroes in place instead of seeking forever.
+//
+// Sizing: 200000 steps = ~62 motor revolutions at 16 microsteps (~4 min at
+// HOMING_SPEED). How much platform travel that is depends on your gear
+// reduction: plenty for low ratios (~15 steps/arcmin -> hundreds of
+// degrees), but only ~3.4 deg at extreme reductions (~970 steps/arcmin).
+// If your switch sits farther than that, raise this limit accordingly.
+const long HOMING_MAX_TRAVEL = 200000;
+
+bool endstopTriggered(const Axis &axis) {
+  if (!axis.endstopEnabled) return false;
+  return digitalRead(axis.endstopPin) == (axis.endstopInvert ? LOW : HIGH);
+}
+
+// ---------------------------------------------------------------------------
+// Status frame
+// ---------------------------------------------------------------------------
+
+// "?" is the plugin's heartbeat: discovery probe during the COM scan and
+// completion polling during moves. Two lines out, always.
+void handleStatusQuery() {
+  const char *status = "Idle";
+  if (homingInProgress) {
+    status = "Home";
+  } else if (xAxis.stepper.isRunning() || yAxis.stepper.isRunning()) {
+    status = "Run";
   }
-  
-  // GRBL Format: <Status|MPos:x,y,z|V:version|>
+
   Serial.print("<");
-  Serial.print(machineStatus);
+  Serial.print(status);
   Serial.print("|MPos:");
-  Serial.print(x_position, 2);
+  Serial.print((float)xAxis.stepper.currentPosition(), 2);
   Serial.print(",");
-  Serial.print(y_position, 2);
+  Serial.print((float)yAxis.stepper.currentPosition(), 2);
   Serial.print(",0.00|V:");
   Serial.print(FW_VERSION);
   Serial.println("|>");
   Serial.println("ok");
 }
 
-// --- COMMAND PARSER ---
-String parseGRBLJog(String cmd);  // Forward declaration
+// ---------------------------------------------------------------------------
+// Motion commands
+// ---------------------------------------------------------------------------
 
-String parseCommand(String input) {
-  input.trim();
-  String response = "ok";
-  if (input.length() == 0) return "";
-
-  // GRBL Status Command
-  if (input.charAt(0) == '?') {
-    sendStatus();
-    return "";
+// Extracts the signed number following `letter` in a jog spec, e.g. "X-42.5"
+// out of "G91G21X-42.5F800". Returns false when the letter is absent.
+bool readAxisValue(const String &spec, char letter, float &value) {
+  int at = spec.indexOf(letter);
+  if (at < 0) return false;
+  int end = at + 1;
+  while (end < (int)spec.length()) {
+    char c = spec.charAt(end);
+    if (!isdigit(c) && c != '.' && c != '-') break;
+    end++;
   }
-
-  // GRBL Homing Command
-  if (input.startsWith("$H")) {
-    performHoming();
-    return "";
-  }
-
-  // GRBL Jog Commands: $J=G91G21X10F100 or $J=G53X10F100
-  if (input.startsWith("$J=")) {
-    return parseGRBLJog(input.substring(3));
-  }
-
-  if (input.length() < 2) return "error";
-  char firstChar = input.charAt(0);
-  
-  // Direct Movement (e.g. X800 for steps)
-  if ((firstChar == 'X' || firstChar == 'x' || firstChar == 'Y' || firstChar == 'y') && 
-      (isdigit(input.charAt(1)) || input.charAt(1) == '-')) {
-      long steps = input.substring(1).toInt();
-      if (firstChar == 'X' || firstChar == 'x') { 
-        stepperX.move(steps);
-        response = "ok";
-      } else { 
-        stepperY.move(steps);
-        response = "ok";
-      }
-      return response;
-  }
-
-  // Config Commands (CX, SX, HX...)
-  if (input.length() > 2) {
-      char type = firstChar; char axis = input.charAt(1);
-      int val = input.substring(2).toInt();
-
-      if (type == 'C' || type == 'c') {
-        if (axis == 'X' || axis == 'x') { x_run_ma = val; apply_current_x(); }
-        else { y_run_ma = val; apply_current_y(); }
-        response = "ok";
-      }
-      else if (type == 'H' || type == 'h') {
-        float mult = val / 100.0;
-        if (axis == 'X' || axis == 'x') { x_hold_mult = mult; apply_current_x(); }
-        else { y_hold_mult = mult; apply_current_y(); }
-        response = "ok";
-      }
-      else if (type == 'S' || type == 's') {
-        if (axis == 'X' || axis == 'x') { driverX.microsteps(val); x_microsteps = val; }
-        else { driverY.microsteps(val); y_microsteps = val; }
-        response = "ok";
-      }
-  }
-  return response;
+  value = spec.substring(at + 1, end).toFloat();
+  return true;
 }
 
-// --- GRBL JOG PARSER ---
-String parseGRBLJog(String cmd) {
-  // Examples: G91G21X10F100 (relative) or G53X10F100 (absolute)
-  bool isRelative = cmd.indexOf("G91") >= 0;
-  bool isAbsolute = cmd.indexOf("G53") >= 0;
-  
-  float xVal = 0, yVal = 0;
-  bool hasX = false, hasY = false;
-  
-  // Parse X
-  int xPos = cmd.indexOf('X');
-  if (xPos >= 0) {
-    hasX = true;
-    int nextChar = xPos + 1;
-    while (nextChar < cmd.length() && (isdigit(cmd.charAt(nextChar)) || cmd.charAt(nextChar) == '.' || cmd.charAt(nextChar) == '-')) nextChar++;
-    xVal = cmd.substring(xPos + 1, nextChar).toFloat();
+// Motion profile bounds (steps/s). The F feed value was ignored before 1.2.1;
+// now it sets the max speed for that jog. The ceiling keeps the step rate
+// within what loop()-driven AccelStepper can generate reliably on the ESP32
+// while also servicing serial I/O; the floor keeps a typo from freezing an
+// axis at a glacial rate. F absent or out of grammar -> DEFAULT_MAX_SPEED,
+// exactly the pre-1.2.1 behavior. Acceleration stays fixed.
+const float DEFAULT_MAX_SPEED = 2000;
+const float JOG_SPEED_MIN = 50;
+const float JOG_SPEED_MAX = 3000;
+
+float jogSpeedFrom(const String &spec) {
+  float feed;
+  if (!readAxisValue(spec, 'F', feed) || feed <= 0) return DEFAULT_MAX_SPEED;
+  return constrain(feed, JOG_SPEED_MIN, JOG_SPEED_MAX);
+}
+
+// $J=G91G21X<n>F<f> (relative) / $J=G53X<n>F<f> (absolute). Targets are
+// rounded with lround() - truncating would lose up to 0.99 steps per command,
+// which accumulates into real drift at high gear ratios.
+String handleJog(const String &spec) {
+  bool relative = spec.indexOf("G91") >= 0;
+  bool absolute = spec.indexOf("G53") >= 0;
+  if (!relative && !absolute) return "ok";
+
+  float speed = jogSpeedFrom(spec);
+  float value;
+  if (readAxisValue(spec, 'X', value)) {
+    xAxis.stepper.setMaxSpeed(speed);
+    if (relative) xAxis.stepper.move(lround(value));
+    else xAxis.stepper.moveTo(lround(value));
   }
-  
-  // Parse Y
-  int yPos = cmd.indexOf('Y');
-  if (yPos >= 0) {
-    hasY = true;
-    int nextChar = yPos + 1;
-    while (nextChar < cmd.length() && (isdigit(cmd.charAt(nextChar)) || cmd.charAt(nextChar) == '.' || cmd.charAt(nextChar) == '-')) nextChar++;
-    yVal = cmd.substring(yPos + 1, nextChar).toFloat();
+  if (readAxisValue(spec, 'Y', value)) {
+    yAxis.stepper.setMaxSpeed(speed);
+    if (relative) yAxis.stepper.move(lround(value));
+    else yAxis.stepper.moveTo(lround(value));
   }
-  
-  // Execute movement
-  // Use lround() instead of (long) cast to preserve fractional steps.
-  // (long) truncates toward zero, losing 0..0.99 steps per command which
-  // accumulates into significant position drift, especially with high gear ratios.
-  if (isRelative) {
-    if (hasX) stepperX.move(lround(xVal));
-    if (hasY) stepperY.move(lround(yVal));
-  } else if (isAbsolute) {
-    if (hasX) stepperX.moveTo(lround(xVal));
-    if (hasY) stepperY.moveTo(lround(yVal));
-  }
-  
   return "ok";
 }
 
+// Bare "X800" / "Y-200": relative move in whole steps. Carries no feed value,
+// so the profile is reset to the default rather than inheriting whatever F the
+// previous jog happened to use.
+String handleDirectMove(Axis &axis, const String &command) {
+  axis.stepper.setMaxSpeed(DEFAULT_MAX_SPEED);
+  axis.stepper.move(command.substring(1).toInt());
+  return "ok";
+}
+
+// ---------------------------------------------------------------------------
+// Driver configuration (type-first grammar: C=run current mA, H=hold percent,
+// S=microsteps; second char selects the axis, e.g. CX600, HY50, SX16).
+// Deprecated in the protocol spec - kept for wire compatibility.
+// ---------------------------------------------------------------------------
+
+String handleDriverConfig(char type, const String &command) {
+  Axis *axis = axisByLetter(command.charAt(1));
+  if (axis == nullptr) axis = &yAxis; // historical fallback, kept as-is
+  int value = command.substring(2).toInt();
+
+  if (type == 'C' || type == 'c') {
+    axis->runCurrent_mA = value;
+    applyDriverCurrent(*axis);
+  } else if (type == 'H' || type == 'h') {
+    axis->holdMultiplier = value / 100.0f;
+    applyDriverCurrent(*axis);
+  } else if (type == 'S' || type == 's') {
+    axis->driver.microsteps(value);
+    axis->microsteps = value;
+  }
+  return "ok";
+}
+
+// ---------------------------------------------------------------------------
+// Homing ($H) - per-axis: an axis with an endstop seeks the switch, backs
+// off and zeroes there; an axis without one zeroes in place. Blocking on
+// purpose: the plugin never issues $H during an alignment; this exists for
+// bench setup from a terminal.
+// ---------------------------------------------------------------------------
+
+void homeAxis(Axis &axis) {
+  if (!axis.endstopEnabled) {
+    Serial.print("Homing: ");
+    Serial.print(axis.name);
+    Serial.println(" has no endstop, zeroed in place");
+    axis.stepper.setCurrentPosition(0);
+    return;
+  }
+
+  Serial.print("Homing: ");
+  Serial.print(axis.name);
+  Serial.println(" toward endstop...");
+  long start = axis.stepper.currentPosition();
+  axis.stepper.setSpeed(axis.homingDirection * HOMING_SPEED);
+  while (!endstopTriggered(axis)) {
+    axis.stepper.runSpeed();
+    if (labs(axis.stepper.currentPosition() - start) > HOMING_MAX_TRAVEL) {
+      axis.stepper.stop();
+      Serial.print("Homing: ");
+      Serial.print(axis.name);
+      Serial.println(" endstop not found within travel limit - check wiring/config, zeroed in place");
+      axis.stepper.setCurrentPosition(0);
+      return;
+    }
+  }
+  axis.stepper.stop();
+  delay(100);
+
+  axis.stepper.move(-axis.homingDirection * HOMING_BACKOFF);
+  while (axis.stepper.distanceToGo() != 0) {
+    axis.stepper.run();
+  }
+  axis.stepper.setCurrentPosition(0);
+  Serial.print("Homing: ");
+  Serial.print(axis.name);
+  Serial.println(" zeroed at endstop");
+}
+
+void handleHoming() {
+  homingInProgress = true;
+  homeAxis(xAxis);
+  homeAxis(yAxis);
+  homed = true;
+  homingInProgress = false;
+  Serial.println("Homing complete");
+  Serial.println("ok");
+}
+
+// ---------------------------------------------------------------------------
+// Command dispatch - one line in, reply lines out (see wire discipline above).
+// Handlers that write their own reply lines return "" so dispatch stays quiet.
+// ---------------------------------------------------------------------------
+
+String dispatchCommand(String input) {
+  input.trim();
+  if (input.length() == 0) return "";
+
+  if (input.charAt(0) == '?') {
+    handleStatusQuery();
+    return "";
+  }
+  // "!" - stop: decelerate both axes to a halt (AccelStepper::stop keeps the
+  // position counter true, so MPos stays honest). New in 1.2.1; the plugin's
+  // STOP button sends this. Not reachable during $H (homing is blocking).
+  if (input.charAt(0) == '!') {
+    xAxis.stepper.stop();
+    yAxis.stepper.stop();
+    return "ok";
+  }
+  if (input.startsWith("$H")) {
+    handleHoming();
+    return "";
+  }
+  if (input.startsWith("$J=")) {
+    return handleJog(input.substring(3));
+  }
+  if (input.length() < 2) return "error";
+
+  char first = input.charAt(0);
+  Axis *axis = axisByLetter(first);
+  char second = input.charAt(1);
+  if (axis != nullptr && (isdigit(second) || second == '-')) {
+    return handleDirectMove(*axis, input);
+  }
+  if (input.length() > 2 &&
+      (first == 'C' || first == 'c' || first == 'H' || first == 'h' ||
+       first == 'S' || first == 's')) {
+    return handleDriverConfig(first, input);
+  }
+
+  // Unknown command: acknowledge and do nothing - never silence, never a
+  // crash. The plugin must never be left waiting for a reply.
+  return "ok";
+}
+
+// ---------------------------------------------------------------------------
+// Arduino entry points
+// ---------------------------------------------------------------------------
+
 void setup() {
   Serial.begin(115200);
-  SERIAL_PORT.begin(115200, SERIAL_8N1, DRIVER_UART_RX, DRIVER_UART_TX);
+  DRIVER_SERIAL.begin(115200, SERIAL_8N1, DRIVER_UART_RX, DRIVER_UART_TX);
 
-  pinMode(ENABLE_PIN, OUTPUT); digitalWrite(ENABLE_PIN, LOW);
-  
-  // Setup endstop with pullup resistor (X axis only - elevation)
-  pinMode(X_ENDSTOP_PIN, INPUT_PULLUP);
-  // Y axis (azimuth) has 360° free rotation, no endstop
+  pinMode(ENABLE_PIN, OUTPUT);
+  digitalWrite(ENABLE_PIN, LOW);
+  // Plain INPUT: GPIO34/35 have no internal pulls (see endstop note above) -
+  // the external pull resistor defines the idle level.
+  for (Axis *axis : {&xAxis, &yAxis}) {
+    if (axis->endstopEnabled) pinMode(axis->endstopPin, INPUT);
+  }
 
-  driverX.begin(); driverX.toff(5); driverX.microsteps(x_microsteps); driverX.pwm_autoscale(true); apply_current_x();
-  driverY.begin(); driverY.toff(5); driverY.microsteps(y_microsteps); driverY.pwm_autoscale(true); apply_current_y();
+  for (Axis *axis : {&xAxis, &yAxis}) {
+    axis->driver.begin();
+    axis->driver.toff(5);
+    axis->driver.microsteps(axis->microsteps);
+    axis->driver.pwm_autoscale(true);
+    applyDriverCurrent(*axis);
+    axis->stepper.setMaxSpeed(2000);
+    axis->stepper.setAcceleration(1000);
+  }
 
-  stepperX.setMaxSpeed(2000); stepperX.setAcceleration(1000);
-  stepperY.setMaxSpeed(2000); stepperY.setAcceleration(1000);
-
-  Serial.println("\n--- FYSETC E4 READY ---");
-  Serial.print("OAPA System Initialized (firmware ");
+  // Boot banner. The plugin discards and retries past this (it clears the
+  // input buffer before probing), but a human on a terminal gets oriented.
+  Serial.println("\n--- OAPA controller ready ---");
+  Serial.print("firmware ");
   Serial.print(FW_VERSION);
-  Serial.println(")");
-  Serial.println("Send $H to home elevation axis");
-  Serial.println("Azimuth: 360° free rotation (no homing)");
+  Serial.println(" | protocol: github.com/michelebergo/oapa-firmware");
+  Serial.println("$H homes axes with an endstop, zeroes the others in place");
   Serial.println("Waiting for commands...");
 }
 
 void loop() {
-  // Safety: Stop X axis if endstop triggered during movement (except while homing)
-  // Y axis has no endstop (360° free rotation)
-  // TEMPORARILY DISABLED for testing - endstop pin may be floating or incorrectly wired
-  // if (!isHoming) {
-  //   if (isXEndstopTriggered() && stepperX.speed() < 0) stepperX.stop();
-  // }
+  // Soft-limit guard (opt-in, see ENDSTOP_GUARD_ENABLED): stop an axis that
+  // is moving toward its triggered endstop. Requires verified wiring with an
+  // external pull resistor - a floating GPIO34/35 would false-trigger.
+#if ENDSTOP_GUARD_ENABLED
+  if (!homingInProgress) {
+    for (Axis *axis : {&xAxis, &yAxis}) {
+      if (endstopTriggered(*axis) &&
+          axis->stepper.speed() * axis->homingDirection > 0) {
+        axis->stepper.stop();
+      }
+    }
+  }
+#endif
 
-  // CRITICAL: Must call run() continuously for motors to move
-  stepperX.run();
-  stepperY.run();
+  // AccelStepper generates steps from run(): the protocol layer must never
+  // starve it. That is why serial input is consumed one character per pass
+  // instead of blocking on a full line.
+  xAxis.stepper.run();
+  yAxis.stepper.run();
 
-  // NON-BLOCKING serial read - read ONLY ONE character per loop iteration
-  // This ensures run() is called frequently enough for smooth motor movement
   if (Serial.available()) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
-      // Command complete - process it
-      if (serialBuffer.length() > 0) {
-        String result = parseCommand(serialBuffer);
-        if (result.length() > 0) Serial.println(result);
-        serialBuffer = "";  // Clear buffer for next command
+      if (lineBuffer.length() > 0) {
+        String reply = dispatchCommand(lineBuffer);
+        if (reply.length() > 0) Serial.println(reply);
+        lineBuffer = "";
       }
     } else {
-      // Add character to buffer
-      serialBuffer += c;
+      lineBuffer += c;
     }
   }
 }
