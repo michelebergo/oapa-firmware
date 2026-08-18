@@ -1,5 +1,5 @@
-﻿/**
- * OAPA reference firmware — FYSETC E4 (ESP32 + dual TMC2209)
+/**
+ * OAPA reference firmware - FYSETC E4 (ESP32 + dual TMC2209)
  *
  * Implements the OAPA wire protocol for the NINA Three Point Polar Alignment
  * plugin. Protocol home and documentation:
@@ -11,10 +11,14 @@
  *   - empty input -> no reply
  *   - commands are newline-terminated text at 115200 baud
  *
+ * 1.2.1: the F feed value in $J= jogs now sets the max speed for that move
+ * (clamped, steps/s; absent -> default 2000), and "!" decelerates both axes
+ * to a stop.
+ *
  * Status frame format (verbatim):
  *   <Status|MPos:x.xx,y.yy,0.00|V:FW_VERSION|>
  * where Status is Idle, Run or Home. The plugin polls "?" every ~300 ms and
- * detects motion completion by watching MPos converge — positions reported
+ * detects motion completion by watching MPos converge - positions reported
  * here must always be the stepper's real position, never a cached value.
  *
  * Axis convention: X = altitude, Y = azimuth. Endstops are optional per
@@ -30,7 +34,7 @@
 
 // Reported in the status frame (V: field) so the plugin can detect outdated
 // firmware. Bump on every protocol-visible change.
-#define FW_VERSION "1.2.0"
+#define FW_VERSION "1.2.2"
 
 // ---------------------------------------------------------------------------
 // Board wiring (FYSETC E4 v1.3)
@@ -43,12 +47,12 @@
 #define Y_STEP_PIN 33
 #define Y_DIR_PIN 32
 
-// Endstops — optional, per axis, all DISABLED by default: without a switch
+// Endstops - optional, per axis, all DISABLED by default: without a switch
 // an axis simply zeroes in place on $H. The FYSETC E4 exposes X-min (GPIO34)
 // and Y-min (GPIO35) if your build has reference switches.
 //
 // ESP32 hardware note: GPIO34-39 are input-only pins WITHOUT internal pull
-// resistors — INPUT_PULLUP silently does nothing there. Before enabling an
+// resistors - INPUT_PULLUP silently does nothing there. Before enabling an
 // endstop, wire an external pull-up (switch to GND, INVERT=true) or
 // pull-down (switch to 3V3, INVERT=false); a floating pin false-triggers.
 #define X_ENDSTOP_ENABLED false
@@ -62,7 +66,7 @@
 #define Y_HOMING_DIR -1
 
 // Soft-limit guard during normal moves (outside $H): stops an axis that is
-// driving into its triggered endstop. Off by default — enable only after the
+// driving into its triggered endstop. Off by default - enable only after the
 // external pull resistor is verified, or a floating pin will halt real moves.
 #define ENDSTOP_GUARD_ENABLED false
 
@@ -75,7 +79,7 @@
 #define Y_DRIVER_ADDR 3
 
 // ---------------------------------------------------------------------------
-// Axes — each axis owns its driver, its stepper and its electrical settings.
+// Axes - each axis owns its driver, its stepper and its electrical settings.
 // The protocol layer only ever talks to an Axis through the helpers below.
 // ---------------------------------------------------------------------------
 
@@ -98,9 +102,14 @@ struct Axis {
   int homingDirection;
 };
 
-Axis xAxis = {"altitude", tmcX, stepX, 600, 0.5f, 16,
+// Hold defaults to 25% (was 50% before 1.2.2): the hold current flows in the
+// coils continuously from power-on - including the whole window before the
+// plugin connects and pushes the user's values - and heat goes with I^2, so a
+// polar-alignment platform (usually self-locking mechanics) is better served
+// by a cool motor than by holding torque it rarely needs.
+Axis xAxis = {"altitude", tmcX, stepX, 600, 0.25f, 16,
               X_ENDSTOP_ENABLED, X_ENDSTOP_PIN, X_ENDSTOP_INVERT, X_HOMING_DIR};
-Axis yAxis = {"azimuth", tmcY, stepY, 600, 0.5f, 16,
+Axis yAxis = {"azimuth", tmcY, stepY, 600, 0.25f, 16,
               Y_ENDSTOP_ENABLED, Y_ENDSTOP_PIN, Y_ENDSTOP_INVERT, Y_HOMING_DIR};
 
 // Returns nullptr for anything that is not an axis letter.
@@ -185,29 +194,50 @@ bool readAxisValue(const String &spec, char letter, float &value) {
   return true;
 }
 
-// $J=G91G21X<n>F<f> (relative) / $J=G53X<n>F<f> (absolute). The F feed value
-// is accepted and ignored: motion profiles are fixed in setup(). Targets are
-// rounded with lround() — truncating would lose up to 0.99 steps per command,
+// Motion profile bounds (steps/s). The F feed value was ignored before 1.2.1;
+// now it sets the max speed for that jog. The ceiling keeps the step rate
+// within what loop()-driven AccelStepper can generate reliably on the ESP32
+// while also servicing serial I/O; the floor keeps a typo from freezing an
+// axis at a glacial rate. F absent or out of grammar -> DEFAULT_MAX_SPEED,
+// exactly the pre-1.2.1 behavior. Acceleration stays fixed.
+const float DEFAULT_MAX_SPEED = 2000;
+const float JOG_SPEED_MIN = 50;
+const float JOG_SPEED_MAX = 3000;
+
+float jogSpeedFrom(const String &spec) {
+  float feed;
+  if (!readAxisValue(spec, 'F', feed) || feed <= 0) return DEFAULT_MAX_SPEED;
+  return constrain(feed, JOG_SPEED_MIN, JOG_SPEED_MAX);
+}
+
+// $J=G91G21X<n>F<f> (relative) / $J=G53X<n>F<f> (absolute). Targets are
+// rounded with lround() - truncating would lose up to 0.99 steps per command,
 // which accumulates into real drift at high gear ratios.
 String handleJog(const String &spec) {
   bool relative = spec.indexOf("G91") >= 0;
   bool absolute = spec.indexOf("G53") >= 0;
   if (!relative && !absolute) return "ok";
 
+  float speed = jogSpeedFrom(spec);
   float value;
   if (readAxisValue(spec, 'X', value)) {
+    xAxis.stepper.setMaxSpeed(speed);
     if (relative) xAxis.stepper.move(lround(value));
     else xAxis.stepper.moveTo(lround(value));
   }
   if (readAxisValue(spec, 'Y', value)) {
+    yAxis.stepper.setMaxSpeed(speed);
     if (relative) yAxis.stepper.move(lround(value));
     else yAxis.stepper.moveTo(lround(value));
   }
   return "ok";
 }
 
-// Bare "X800" / "Y-200": relative move in whole steps.
+// Bare "X800" / "Y-200": relative move in whole steps. Carries no feed value,
+// so the profile is reset to the default rather than inheriting whatever F the
+// previous jog happened to use.
 String handleDirectMove(Axis &axis, const String &command) {
+  axis.stepper.setMaxSpeed(DEFAULT_MAX_SPEED);
   axis.stepper.move(command.substring(1).toInt());
   return "ok";
 }
@@ -215,7 +245,7 @@ String handleDirectMove(Axis &axis, const String &command) {
 // ---------------------------------------------------------------------------
 // Driver configuration (type-first grammar: C=run current mA, H=hold percent,
 // S=microsteps; second char selects the axis, e.g. CX600, HY50, SX16).
-// Deprecated in the protocol spec — kept for wire compatibility.
+// Deprecated in the protocol spec - kept for wire compatibility.
 // ---------------------------------------------------------------------------
 
 String handleDriverConfig(char type, const String &command) {
@@ -237,7 +267,7 @@ String handleDriverConfig(char type, const String &command) {
 }
 
 // ---------------------------------------------------------------------------
-// Homing ($H) — per-axis: an axis with an endstop seeks the switch, backs
+// Homing ($H) - per-axis: an axis with an endstop seeks the switch, backs
 // off and zeroes there; an axis without one zeroes in place. Blocking on
 // purpose: the plugin never issues $H during an alignment; this exists for
 // bench setup from a terminal.
@@ -292,7 +322,7 @@ void handleHoming() {
 }
 
 // ---------------------------------------------------------------------------
-// Command dispatch — one line in, reply lines out (see wire discipline above).
+// Command dispatch - one line in, reply lines out (see wire discipline above).
 // Handlers that write their own reply lines return "" so dispatch stays quiet.
 // ---------------------------------------------------------------------------
 
@@ -303,6 +333,14 @@ String dispatchCommand(String input) {
   if (input.charAt(0) == '?') {
     handleStatusQuery();
     return "";
+  }
+  // "!" - stop: decelerate both axes to a halt (AccelStepper::stop keeps the
+  // position counter true, so MPos stays honest). New in 1.2.1; the plugin's
+  // STOP button sends this. Not reachable during $H (homing is blocking).
+  if (input.charAt(0) == '!') {
+    xAxis.stepper.stop();
+    yAxis.stepper.stop();
+    return "ok";
   }
   if (input.startsWith("$H")) {
     handleHoming();
@@ -325,7 +363,7 @@ String dispatchCommand(String input) {
     return handleDriverConfig(first, input);
   }
 
-  // Unknown command: acknowledge and do nothing — never silence, never a
+  // Unknown command: acknowledge and do nothing - never silence, never a
   // crash. The plugin must never be left waiting for a reply.
   return "ok";
 }
@@ -340,7 +378,7 @@ void setup() {
 
   pinMode(ENABLE_PIN, OUTPUT);
   digitalWrite(ENABLE_PIN, LOW);
-  // Plain INPUT: GPIO34/35 have no internal pulls (see endstop note above) —
+  // Plain INPUT: GPIO34/35 have no internal pulls (see endstop note above) -
   // the external pull resistor defines the idle level.
   for (Axis *axis : {&xAxis, &yAxis}) {
     if (axis->endstopEnabled) pinMode(axis->endstopPin, INPUT);
@@ -369,7 +407,7 @@ void setup() {
 void loop() {
   // Soft-limit guard (opt-in, see ENDSTOP_GUARD_ENABLED): stop an axis that
   // is moving toward its triggered endstop. Requires verified wiring with an
-  // external pull resistor — a floating GPIO34/35 would false-trigger.
+  // external pull resistor - a floating GPIO34/35 would false-trigger.
 #if ENDSTOP_GUARD_ENABLED
   if (!homingInProgress) {
     for (Axis *axis : {&xAxis, &yAxis}) {

@@ -53,9 +53,10 @@ Different boards, drivers, motors, and gear ratios work as long as the serial pr
 |---|---|
 | `?` | Status query — replies with the status frame below |
 | `$H` | Home the altitude (X) axis against its endstop |
-| `$J=G91G21X<n>F<f>` | Relative jog (steps) |
-| `$J=G53X<n>F<f>` | Absolute jog (steps) |
-| `X<n>` / `Y<n>` | Direct relative move in steps |
+| `$J=G91G21X<n>F<f>` | Relative jog (steps), `F` = max speed in steps/s |
+| `$J=G53X<n>F<f>` | Absolute jog (steps), `F` = max speed in steps/s |
+| `X<n>` / `Y<n>` | Direct relative move in steps, at the default speed |
+| `!` | Stop — decelerates both axes to a halt (since 1.2.1) |
 | `CX<mA>` / `CY<mA>` | Set run current (milliamps) |
 | `HX<pct>` / `HY<pct>` | Set hold current (percent of run current) |
 | `SX<n>` / `SY<n>` | Set microsteps |
@@ -79,6 +80,13 @@ Open `oapa.ino` in the Arduino IDE (or PlatformIO), select your ESP32 board, and
 ## Versioning
 
 `FW_VERSION` in `oapa.ino` is bumped on every protocol-visible change. The version is reported in the status frame so the plugin can detect outdated firmware.
+
+| Version | Change |
+|---|---|
+| **1.2.2** | Hold current defaults to 25% of run current instead of 50%. Hold current flows continuously from power-on — including the whole window before the plugin connects and pushes the user's values — and heat goes with the square of it. A polar-alignment platform is usually self-locking mechanics, so it is better served by a cool motor than by holding torque it rarely needs. |
+| **1.2.1** | The `F` feed value in `$J=` jogs now sets the maximum speed for that move (clamped to 50–3000 steps/s; absent or malformed → 2000, exactly the previous behaviour). Acceleration stays fixed. Direct `X<n>`/`Y<n>` moves carry no feed value, so they reset the profile to the default instead of inheriting whatever `F` the previous jog used. Adds `!`, which decelerates both axes to a halt while keeping the position counter honest — the plugin's STOP button sends it. |
+| **1.2.0** | Homing travel limit: bounded seek, and an axis whose enabled endstop is never found zeroes in place instead of running away. |
+| **1.1.0** | `V:` version field added to the status frame. |
 
 ## Using it with N.I.N.A.
 
