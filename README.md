@@ -20,6 +20,7 @@ Practical requirements for the mechanics:
 - Both axes must be able to move **in both directions** while under the full load of the mount and rig
 - A total adjustment range of **±1-2°** per axis is plenty (TPPA gets you within that range by hand first)
 - Backlash is acceptable — it is measured during Self-Calibration and compensated — but the axes must not slip or shift under load
+- The azimuth motor goes on the X axis and the altitude motor on the Y axis — the convention the TPPA plugin uses
 - Endstops are optional on both axes (used only for homing) and **disabled by default**: an axis without one simply zeroes in place
 
 ## Hardware
@@ -40,7 +41,8 @@ Pinout (FYSETC E4 v1.3):
 | Enable | 25 |
 | X step / dir | 27 / 26 |
 | Y step / dir | 33 / 32 |
-| X endstop | 34 (X-min port) |
+| X endstop (azimuth, optional) | 34 (X-min port) |
+| Y endstop (altitude, optional) | 35 (Y-min port) |
 | TMC UART | 15 |
 
 Different boards, drivers, motors, and gear ratios work as long as the serial protocol below is implemented. The plugin's **Self-Calibration** measures the actual gear response and backlash on the sky, so no mechanical parameters need to be configured in the firmware.
@@ -110,13 +112,6 @@ The source is deliberately **plain ASCII with no byte-order mark**: unzipping on
 | 1.2.1 | `F` feed value sets the step rate of a jog (clamped 50–3000); new `!` stop command |
 | 1.2.0 | Axis-first restructure; endstops optional per axis and disabled by default; homing travel limit; opt-in soft-limit guard |
 | 1.1.0 | `V:` version field added to the status frame |
-
-| Version | Change |
-|---|---|
-| **1.2.2** | Hold current defaults to 25% of run current instead of 50%. Hold current flows continuously from power-on — including the whole window before the plugin connects and pushes the user's values — and heat goes with the square of it. A polar-alignment platform is usually self-locking mechanics, so it is better served by a cool motor than by holding torque it rarely needs. |
-| **1.2.1** | The `F` feed value in `$J=` jogs now sets the maximum speed for that move (clamped to 50–3000 steps/s; absent or malformed → 2000, exactly the previous behaviour). Acceleration stays fixed. Direct `X<n>`/`Y<n>` moves carry no feed value, so they reset the profile to the default instead of inheriting whatever `F` the previous jog used. Adds `!`, which decelerates both axes to a halt while keeping the position counter honest — the plugin's STOP button sends it. |
-| **1.2.0** | Homing travel limit: bounded seek, and an axis whose enabled endstop is never found zeroes in place instead of running away. |
-| **1.1.0** | `V:` version field added to the status frame. |
 
 ## Using it with N.I.N.A.
 

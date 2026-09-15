@@ -21,7 +21,8 @@
  * detects motion completion by watching MPos converge - positions reported
  * here must always be the stepper's real position, never a cached value.
  *
- * Axis convention: X = altitude, Y = azimuth. Endstops are optional per
+ * Axis convention: X = azimuth, Y = altitude, the convention the TPPA plugin
+ * uses - wire the azimuth motor to X and the altitude motor to Y. Endstops are optional per
  * axis (see the endstop section): an axis with one homes against it on $H,
  * an axis without one zeroes in place. Gear ratios and backlash are NOT
  * configured here: the plugin's on-sky self-calibration measures them,
@@ -60,7 +61,7 @@
 #define X_ENDSTOP_INVERT false  // true for a normally-closed switch
 #define X_HOMING_DIR -1         // sign of motion toward the switch
 
-#define Y_ENDSTOP_ENABLED false // enable if your azimuth has a reference switch
+#define Y_ENDSTOP_ENABLED false // enable if your altitude has a reference switch
 #define Y_ENDSTOP_PIN 35
 #define Y_ENDSTOP_INVERT false
 #define Y_HOMING_DIR -1
@@ -107,9 +108,9 @@ struct Axis {
 // plugin connects and pushes the user's values - and heat goes with I^2, so a
 // polar-alignment platform (usually self-locking mechanics) is better served
 // by a cool motor than by holding torque it rarely needs.
-Axis xAxis = {"altitude", tmcX, stepX, 600, 0.25f, 16,
+Axis xAxis = {"azimuth", tmcX, stepX, 600, 0.25f, 16,
               X_ENDSTOP_ENABLED, X_ENDSTOP_PIN, X_ENDSTOP_INVERT, X_HOMING_DIR};
-Axis yAxis = {"azimuth", tmcY, stepY, 600, 0.25f, 16,
+Axis yAxis = {"altitude", tmcY, stepY, 600, 0.25f, 16,
               Y_ENDSTOP_ENABLED, Y_ENDSTOP_PIN, Y_ENDSTOP_INVERT, Y_HOMING_DIR};
 
 // Returns nullptr for anything that is not an axis letter.
