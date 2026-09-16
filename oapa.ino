@@ -1,5 +1,6 @@
 /**
- * OAPA reference firmware - FYSETC E4 (ESP32 + dual TMC2209)
+ * OAPA reference firmware - FYSETC E4 (ESP32 + dual TMC2209), or any ESP32
+ * with plain STEP/DIR drivers (see DRIVER_TMC2209 below)
  *
  * Implements the OAPA wire protocol for the NINA Three Point Polar Alignment
  * plugin. Protocol home and documentation:
@@ -30,18 +31,32 @@
  */
 
 #include <Arduino.h>
-#include <TMCStepper.h>
 #include <AccelStepper.h>
 
+// Driver family. 1 (default) = TMC2209 in UART mode as on the FYSETC E4: run
+// current, hold current and microsteps are set by the host over the serial
+// link. 0 = plain STEP/DIR drivers (A4988, DRV8825, LV8729 and the like): the
+// TMCStepper library is not needed, current comes from the Vref trimmer and
+// microsteps from the MS jumpers on the driver, and the C/H/S commands are
+// still acknowledged with "ok" but have no effect. Motion is identical: it
+// goes through STEP/DIR pulses either way.
+#ifndef DRIVER_TMC2209
+#define DRIVER_TMC2209 1
+#endif
+
+#if DRIVER_TMC2209
+#include <TMCStepper.h>
+#endif
+
 // Reported in the status frame (V: field) so the plugin can detect outdated
-// firmware. Bump on every protocol-visible change.
-#define FW_VERSION "1.2.2"
+// firmware. Bump on every change in what the board does.
+#define FW_VERSION "1.2.3"
 
 // ---------------------------------------------------------------------------
 // Board wiring (FYSETC E4 v1.3)
 // ---------------------------------------------------------------------------
 
-#define ENABLE_PIN 25 // one enable line drives both TMC2209s
+#define ENABLE_PIN 25 // one enable line drives both drivers (active LOW)
 
 #define X_STEP_PIN 27
 #define X_DIR_PIN 26
@@ -71,6 +86,7 @@
 // external pull resistor is verified, or a floating pin will halt real moves.
 #define ENDSTOP_GUARD_ENABLED false
 
+#if DRIVER_TMC2209
 // Both TMC2209s share one UART (half-duplex on GPIO15), addressed 1 and 3.
 #define DRIVER_SERIAL Serial1
 #define DRIVER_UART_RX 15
@@ -78,20 +94,25 @@
 #define R_SENSE 0.11f
 #define X_DRIVER_ADDR 1
 #define Y_DRIVER_ADDR 3
+#endif
 
 // ---------------------------------------------------------------------------
 // Axes - each axis owns its driver, its stepper and its electrical settings.
 // The protocol layer only ever talks to an Axis through the helpers below.
 // ---------------------------------------------------------------------------
 
+#if DRIVER_TMC2209
 TMC2209Stepper tmcX(&DRIVER_SERIAL, R_SENSE, X_DRIVER_ADDR);
 TMC2209Stepper tmcY(&DRIVER_SERIAL, R_SENSE, Y_DRIVER_ADDR);
+#endif
 AccelStepper stepX(AccelStepper::DRIVER, X_STEP_PIN, X_DIR_PIN);
 AccelStepper stepY(AccelStepper::DRIVER, Y_STEP_PIN, Y_DIR_PIN);
 
 struct Axis {
   const char *name;
+#if DRIVER_TMC2209
   TMC2209Stepper &driver;
+#endif
   AccelStepper &stepper;
   int runCurrent_mA;
   float holdMultiplier;
@@ -108,10 +129,19 @@ struct Axis {
 // plugin connects and pushes the user's values - and heat goes with I^2, so a
 // polar-alignment platform (usually self-locking mechanics) is better served
 // by a cool motor than by holding torque it rarely needs.
+// With plain STEP/DIR drivers the current and microstep fields are only
+// bookkeeping: the hardware settings live on the driver module.
+#if DRIVER_TMC2209
 Axis xAxis = {"azimuth", tmcX, stepX, 600, 0.25f, 16,
               X_ENDSTOP_ENABLED, X_ENDSTOP_PIN, X_ENDSTOP_INVERT, X_HOMING_DIR};
 Axis yAxis = {"altitude", tmcY, stepY, 600, 0.25f, 16,
               Y_ENDSTOP_ENABLED, Y_ENDSTOP_PIN, Y_ENDSTOP_INVERT, Y_HOMING_DIR};
+#else
+Axis xAxis = {"azimuth", stepX, 600, 0.25f, 16,
+              X_ENDSTOP_ENABLED, X_ENDSTOP_PIN, X_ENDSTOP_INVERT, X_HOMING_DIR};
+Axis yAxis = {"altitude", stepY, 600, 0.25f, 16,
+              Y_ENDSTOP_ENABLED, Y_ENDSTOP_PIN, Y_ENDSTOP_INVERT, Y_HOMING_DIR};
+#endif
 
 // Returns nullptr for anything that is not an axis letter.
 Axis *axisByLetter(char letter) {
@@ -121,7 +151,19 @@ Axis *axisByLetter(char letter) {
 }
 
 void applyDriverCurrent(Axis &axis) {
+#if DRIVER_TMC2209
   axis.driver.rms_current(axis.runCurrent_mA, axis.holdMultiplier);
+#else
+  (void)axis; // set by the Vref trimmer on the driver module
+#endif
+}
+
+void applyDriverMicrosteps(Axis &axis) {
+#if DRIVER_TMC2209
+  axis.driver.microsteps(axis.microsteps);
+#else
+  (void)axis; // set by the MS jumpers on the driver module
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -261,8 +303,8 @@ String handleDriverConfig(char type, const String &command) {
     axis->holdMultiplier = value / 100.0f;
     applyDriverCurrent(*axis);
   } else if (type == 'S' || type == 's') {
-    axis->driver.microsteps(value);
     axis->microsteps = value;
+    applyDriverMicrosteps(*axis);
   }
   return "ok";
 }
@@ -375,7 +417,9 @@ String dispatchCommand(String input) {
 
 void setup() {
   Serial.begin(115200);
+#if DRIVER_TMC2209
   DRIVER_SERIAL.begin(115200, SERIAL_8N1, DRIVER_UART_RX, DRIVER_UART_TX);
+#endif
 
   pinMode(ENABLE_PIN, OUTPUT);
   digitalWrite(ENABLE_PIN, LOW);
@@ -386,10 +430,12 @@ void setup() {
   }
 
   for (Axis *axis : {&xAxis, &yAxis}) {
+#if DRIVER_TMC2209
     axis->driver.begin();
     axis->driver.toff(5);
-    axis->driver.microsteps(axis->microsteps);
     axis->driver.pwm_autoscale(true);
+#endif
+    applyDriverMicrosteps(*axis);
     applyDriverCurrent(*axis);
     axis->stepper.setMaxSpeed(2000);
     axis->stepper.setAcceleration(1000);

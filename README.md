@@ -30,7 +30,7 @@ The reference implementation targets:
 | Component | Reference part |
 |---|---|
 | Controller board | FYSETC E4 v1.3 (ESP32) |
-| Stepper drivers | 2× TMC2209 (UART mode) |
+| Stepper drivers | 2× TMC2209 (UART mode) — or any STEP/DIR driver, see below |
 | Motors | 2× NEMA17 stepper (or similar), one per axis |
 | Endstop | Optional, per axis — see below; a two-motor build needs none |
 
@@ -46,6 +46,19 @@ Pinout (FYSETC E4 v1.3):
 | TMC UART | 15 |
 
 Different boards, drivers, motors, and gear ratios work as long as the serial protocol below is implemented. The plugin's **Self-Calibration** measures the actual gear response and backlash on the sky, so no mechanical parameters need to be configured in the firmware.
+
+### Plain STEP/DIR drivers (A4988, DRV8825, LV8729, ...)
+
+The firmware only uses the TMC2209 UART to set run current, hold current and microsteps. Motion itself is STEP/DIR pulses, the same for every driver family, so a bare ESP32 dev board with StepStick-style drivers works too. Set `DRIVER_TMC2209` to `0` at the top of `oapa.ino` (or pass `-DDRIVER_TMC2209=0` as a build flag): the `TMCStepper` library is then not needed, and the `C`/`H`/`S` commands are still answered with `ok` but have no effect.
+
+What moves to the hardware in that case:
+
+- **Run current**: the Vref trimmer on each driver module. Neither driver lowers the current when idle the way the TMC2209 does, so the motors sit at run current whenever the board is powered — set Vref on the conservative side.
+- **Microsteps**: the MS/MD jumpers on the module. 16 is the firmware default and the A4988 maximum; the plugin's calibration measures the real steps-per-arcminute anyway, so any setting works as long as it does not change afterwards.
+- **Logic level**: the ESP32 drives 3.3 V signals. Power the A4988's logic supply (`VDD`) from the 3.3 V rail, not 5 V, otherwise the step pulses sit too close to its input threshold. The LV8729 and DRV8825 accept 3.3 V logic directly.
+- **Enable**: active LOW on these modules, as on the TMC2209, so `ENABLE_PIN` needs no change.
+
+The pin numbers in the table above are ordinary output-capable GPIOs and can be kept on a bare ESP32; the `TMC UART` line is simply unused. The current, hold and microstep fields in the plugin's OAPA panel are accepted and ignored by this build.
 
 ## Serial protocol
 
@@ -70,7 +83,7 @@ The `F` feed value is honored from **1.2.1** onward (clamped to 50–3000 steps/
 Status frame:
 
 ```
-<Idle|MPos:123.00,-45.00,0.00|V:1.2.2|>
+<Idle|MPos:123.00,-45.00,0.00|V:1.2.3|>
 ```
 
 - `Idle` / `Run` / `Home` — machine state
@@ -98,16 +111,17 @@ Homing is bounded by `HOMING_MAX_TRAVEL` (200 000 steps): a switch that is enabl
 
 ## Flashing
 
-Open `oapa.ino` in the Arduino IDE (or PlatformIO), select your ESP32 board, and upload. Required libraries: `TMCStepper`, `AccelStepper`.
+Open `oapa.ino` in the Arduino IDE (or PlatformIO), select your ESP32 board, and upload. Required libraries: `AccelStepper`, plus `TMCStepper` unless `DRIVER_TMC2209` is set to `0`.
 
 The source is deliberately **plain ASCII with no byte-order mark**: unzipping on Windows and opening in the Arduino IDE can re-encode anything else into bytes the compiler rejects (`stray '\255' in program`), and whether it happens depends on the local environment. Keep it that way when editing.
 
 ## Versioning
 
-`FW_VERSION` in `oapa.ino` is bumped on every protocol-visible change. The version is reported in the status frame so the host can detect outdated firmware.
+`FW_VERSION` in `oapa.ino` is bumped on every change in what the board does. The version is reported in the status frame so the host can detect outdated firmware.
 
 | Version | Changes |
 |---|---|
+| 1.2.3 | `DRIVER_TMC2209` build switch: plain STEP/DIR drivers (A4988, DRV8825, LV8729, ...) without the TMCStepper library; protocol unchanged |
 | 1.2.2 | Hold current default lowered to 25% |
 | 1.2.1 | `F` feed value sets the step rate of a jog (clamped 50–3000); new `!` stop command |
 | 1.2.0 | Axis-first restructure; endstops optional per axis and disabled by default; homing travel limit; opt-in soft-limit guard |
