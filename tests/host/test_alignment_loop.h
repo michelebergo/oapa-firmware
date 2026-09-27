@@ -46,6 +46,36 @@ TEST(LP_ObservationsOlderThanTheStartAreIgnored) {
   CHECK(l.movesCommanded() == 0);
 }
 
+// After a calibration the axes have just moved: TPPA's next reading can show an image exposed
+// before the calibration's last move ended (bench 27/09/2026: altitude read -9.9' while it was
+// -17.0'), and a probe measured against it teaches the controller a coupling the mount does not
+// have. The first reading is handled as after the loop's own moves: settle, then discard one.
+TEST(LP_AStartRightAfterTheAxesMoved_SettlesAndDiscardsTheFirstReading) {
+  LoopSettings s = lpSettings();
+  s.readingsToSkipAfterMotion = 1;
+  s.settleMs = 2000;
+  AlignmentLoop l(s);
+  CHECK(l.start(0, false, true));
+  Observation settling{30, -20, 1000};
+  CHECK(lpTick(l, 1000, &settling).kind == ActionKind::None);
+  Observation stale{30, -20, 3000};
+  CHECK(lpTick(l, 3000, &stale).kind == ActionKind::None);
+  CHECK(l.movesCommanded() == 0);
+  Observation fresh{30, -20, 7000};
+  CHECK(lpTick(l, 7000, &fresh).kind == ActionKind::Move);
+  CHECK(l.movesCommanded() == 1);
+}
+
+// A run TPPA starts on its own readings has no preceding move: its first reading is used.
+TEST(LP_AStartWithoutPrecedingMoves_UsesTheFirstReading) {
+  LoopSettings s = lpSettings();
+  s.readingsToSkipAfterMotion = 1;
+  AlignmentLoop l(s);
+  CHECK(l.start(0, false));
+  Observation first{30, -20, 100};
+  CHECK(lpTick(l, 100, &first).kind == ActionKind::Move);
+}
+
 TEST(LP_FirstObservationAboveTolerance_ProbesAzimuthWithTheOapaProfile) {
   // total 36.06', cap min(max(5, 28.84), 30) = 28.84', probe max(1, min(5.408, 14.42)) = 5.408'
   // -> 5.408 * 60 = 324.4996 -> 324 steps on X.

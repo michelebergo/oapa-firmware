@@ -81,7 +81,9 @@ class AlignmentLoop {
   explicit AlignmentLoop(const LoopSettings &settings = LoopSettings());
 
   bool configure(const LoopSettings &settings);  // refused while running
-  bool start(uint32_t nowMs, bool ninaActive);
+  // axesJustMoved: the run begins right after other moves (a calibration), so the first
+  // reading is treated as after one of its own moves: settle, then discard.
+  bool start(uint32_t nowMs, bool ninaActive, bool axesJustMoved = false);
   void stopByUser();
   void stopBySource(const std::string &why);  // the error source ended (PA stopped on ASIAIR)
   LoopAction tick(const TickInput &in);

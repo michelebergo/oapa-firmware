@@ -48,7 +48,7 @@ bool AlignmentLoop::configure(const LoopSettings &settings) {
   return true;
 }
 
-bool AlignmentLoop::start(uint32_t nowMs, bool ninaActive) {
+bool AlignmentLoop::start(uint32_t nowMs, bool ninaActive, bool axesJustMoved) {
   if (running() || ninaActive) return false;
   controller_.reset();
   controller_.resetExecutionFailureStreak();
@@ -64,8 +64,8 @@ bool AlignmentLoop::start(uint32_t nowMs, bool ninaActive) {
   lastTotalErrorArcmin_ = 0;
   lastCapArcmin_ = 0;
   movesCommanded_ = 0;
-  freshAfterMs_ = nowMs;
-  skipRemaining_ = 0;
+  freshAfterMs_ = axesJustMoved ? nowMs + settings_.settleMs : nowMs;
+  skipRemaining_ = axesJustMoved ? settings_.readingsToSkipAfterMotion : 0;
   lastObservationMs_ = nowMs;
   return true;
 }

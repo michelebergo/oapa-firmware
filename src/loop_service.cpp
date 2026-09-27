@@ -44,6 +44,7 @@ long calibrationStartY = 0;
 paloop::CalState lastCalState = paloop::CalState::Idle;
 ninabridge::NinaSource nina;
 bool ninaStartPending = false;
+bool ninaStartAfterCalibration = false;  // the axes have just moved: the next run's first reading is stale
 bool ninaRun = false;  // the current (or last) run is fed by N.I.N.A.
 double ninaFactorX = 0;  // 0 until the plugin pushes its calibrated factors
 double ninaFactorY = 0;
@@ -280,6 +281,7 @@ void ninaStart() { ninaStartPending = true; }
 
 void ninaStop() {
   ninaStartPending = false;
+  ninaStartAfterCalibration = false;
   if (ninaDriving()) alignment.stopByUser();
   if (ninaCalibratingNow()) calibration.stopByUser();
 }
@@ -438,7 +440,9 @@ const char *tick(uint32_t nowMs, bool ninaActive, long stepsX, long stepsY, bool
       if (ninaToleranceArcmin > 0) settings.toleranceArcmin = ninaToleranceArcmin;
       alignment.configure(settings);
       passMaxUs = 0;
-      if (alignment.start(nowMs, false)) {
+      bool afterCalibration = ninaStartAfterCalibration;
+      ninaStartAfterCalibration = false;
+      if (alignment.start(nowMs, false, afterCalibration)) {
         ninaRun = true;
         lastOutcome = paloop::Outcome::None;
         lastMoves = 0;
@@ -501,7 +505,10 @@ const char *tick(uint32_t nowMs, bool ninaActive, long stepsX, long stepsY, bool
       }
       // Align with the factors just measured, on the next pass - unless the readings were
       // the plugin's own field displacements, which no alignment can use.
-      if (alignAfter) ninaStartPending = true;
+      if (alignAfter) {
+        ninaStartPending = true;
+        ninaStartAfterCalibration = true;
+      }
     }
   }
   publish(nowMs, stepsX, stepsY);
