@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OAPA</title>
+<style>
+/* Mission-control look in the spirit of Rocket Lab: pure black, heavy uppercase type,
+   hairline panels with corner ticks, numbered sections, outlined buttons with an arrow.
+   System fonts only: the page is served on the ASIAIR hotspot, with no internet.
+   STOP stays solid red: the one strong colour on the page, findable in the dark. */
+:root{--bg:#000;--panel:#070707;--line:#262626;--tick:#8c8c8c;--text:#f2f2f2;--dim:#8b8b8b;--az:#f2f2f2;--alt:#8b8b8b;--bad:#e3262d;
+ --heavy:"Helvetica Neue","Arial Black",Arial,system-ui,sans-serif;--body:"Helvetica Neue",Arial,system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 var(--body);background:var(--bg);color:var(--text);padding-bottom:66px;overflow-x:hidden}
+header{position:sticky;top:0;background:var(--bg);padding:12px 14px 10px;border-bottom:1px solid var(--line);z-index:2}
+#stop{width:100%;padding:15px;font:900 20px var(--heavy);letter-spacing:.34em;background:var(--bad);color:#fff;border:0;border-radius:0}
+#stop:active{background:#b01c22}
+#line{color:var(--dim);font:700 10px var(--body);margin-top:10px;display:flex;gap:6px 14px;flex-wrap:wrap;text-transform:uppercase;letter-spacing:.16em}
+#line>*{min-width:0;overflow-wrap:anywhere}
+.badge{padding:2px 0 3px;border-bottom:1px solid var(--line)}.warn{color:#fff;border-bottom-color:var(--bad)}.sim{color:#fff;border-bottom-color:#fff}
+section{display:none;padding:10px 14px;counter-reset:panel}section.on{display:block}
+/* Panels: hairline frame, corner ticks, a running number on the ones that carry a title. */
+.card{position:relative;background:var(--panel);border:1px solid var(--line);padding:16px 14px;margin:12px 0}
+.card::before,.card::after{content:"";position:absolute;width:9px;height:9px;border:0 solid var(--tick)}
+.card::before{top:-1px;left:-1px;border-top-width:1px;border-left-width:1px}
+.card::after{bottom:-1px;right:-1px;border-bottom-width:1px;border-right-width:1px}
+.card>label:first-child{counter-increment:panel;font:900 12px var(--heavy);color:var(--text);letter-spacing:.2em;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.card>label:first-child::before{content:counter(panel,decimal-leading-zero) " / ";color:var(--dim);font-weight:700}
+.big{display:flex;gap:22px;flex-wrap:wrap;font:800 34px/1.05 var(--heavy);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.big small{display:block;font:700 10px var(--body);color:var(--dim);text-transform:uppercase;letter-spacing:.24em;margin-bottom:6px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}.row>*{flex:1}
+button{padding:13px 10px;font:800 11px var(--body);text-transform:uppercase;letter-spacing:.2em;border-radius:0;border:1px solid #fff;background:transparent;color:#fff;transition:background .15s,color .15s}
+button:active{background:#fff;color:#000}
+@media (hover:hover){button:hover{background:#fff;color:#000}}
+button.primary{background:#fff;color:#000}button.primary::after{content:"  \2192"}button.primary:active{background:#bdbdbd}
+button:disabled,button:disabled:hover{opacity:.28;background:transparent;color:#fff}
+button.primary:disabled{background:#fff;color:#000}button.primary:disabled::after{content:""}
+input{width:100%;padding:8px 0;font:600 16px var(--body);background:transparent;color:var(--text);border:0;border-bottom:1px solid #4a4a4a;border-radius:0;outline:none;font-variant-numeric:tabular-nums}
+input:focus{border-bottom-color:#fff}input[type=file]{border:0;font-size:12px;color:var(--dim)}
+label{display:block;font:700 10px var(--body);color:var(--dim);text-transform:uppercase;letter-spacing:.22em;margin-top:8px}
+p{color:var(--dim)}ul{list-style:none;margin:0;padding:0;font-size:12px}li{padding:7px 0;border-bottom:1px solid #151515}
+li b{color:var(--dim);font-weight:700;margin-right:8px;text-transform:uppercase;letter-spacing:.14em;font-size:10px}svg{width:100%;height:160px;display:block}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#000;border-top:1px solid var(--line)}
+nav button,nav button:hover{flex:1;border:0;background:none;padding:17px 0;font:800 10px var(--body);letter-spacing:.26em;color:var(--dim)}
+nav button.on{color:#fff;box-shadow:inset 0 2px 0 #fff}
+.note{font-size:12px;color:var(--dim);margin:0 0 6px}
+.pad{display:grid;grid-template-columns:repeat(3,76px);grid-template-rows:repeat(3,58px);gap:6px;justify-content:center;margin:4px 0 14px}
+.pad button{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;font-size:10px;letter-spacing:.14em}
+.pad b{font-size:20px;line-height:1;margin-bottom:4px;letter-spacing:0}
+.pad .up{grid-area:1/2}.pad .left{grid-area:2/1}.pad .stop{grid-area:2/2;border-color:var(--bad);color:var(--bad)}.pad .right{grid-area:2/3}.pad .down{grid-area:3/2}
+@media (hover:hover){.pad .stop:hover{background:var(--bad);color:#fff}}.pad .stop:active{background:var(--bad);color:#fff}
+.steps button{padding:10px 2px;letter-spacing:.06em}.steps button.on{background:#fff;color:#000}
+button.sel{background:#fff;color:#000}
+#msg{color:var(--bad);font:700 11px var(--body);letter-spacing:.06em;min-height:1em;margin-top:6px}
+</style></head><body>
+<header>
+ <button id="stop">STOP</button>
+ <div id="line"><span id="net">connecting...</span><span id="nina" class="badge warn" hidden>A PC is controlling OAPA</span><span id="source" class="badge">no source</span><span id="asiair" class="badge">ASIAIR: -</span></div>
+ <div id="msg"></div>
+</header>
+
+<section id="align" class="on">
+ <div class="card"><div class="big"><div><small>Azimuth</small><span id="az">-</span></div><div><small>Altitude</small><span id="alt">-</span></div><div><small>Total</small><span id="tot">-</span></div></div>
+  <div class="row" style="margin-top:6px;color:var(--dim);font-size:13px"><span>PA phase: <span id="phase">-</span></span><span>Loop: <span id="loopState">idle</span></span></div></div>
+ <div class="card"><svg id="chart" viewBox="0 0 300 160" preserveAspectRatio="none"></svg>
+  <div class="row" style="font-size:12px;color:var(--dim)"><span style="color:var(--az)">azimuth</span><span style="color:var(--alt)">altitude</span><span>total</span><span>● move</span></div></div>
+ <div class="card"><div class="row"><button class="primary" id="startLoop">Start automatic</button><button id="stopLoop">Stop</button></div>
+  <p id="reason" style="font-size:13px;color:var(--dim)"></p><ul id="moves"></ul></div>
+</section>
+
+<section id="move">
+ <div class="card"><div class="big"><div><small>AZ (X)</small><span id="posX">-</span></div><div><small>ALT (Y)</small><span id="posY">-</span></div></div>
+  <div style="font-size:12px;color:var(--dim)" id="steps"></div></div>
+ <div class="card"><label>Manual move</label>
+  <div class="pad">
+   <button class="up" data-jog="Y" data-dir="1"><b>&#x25B2;</b>ALT +</button>
+   <button class="left" data-jog="X" data-dir="-1"><b>&#x25C0;</b>AZ &#x2212;</button>
+   <button class="stop" id="padStop"><b>&#x25A0;</b>STOP</button>
+   <button class="right" data-jog="X" data-dir="1"><b>&#x25B6;</b>AZ +</button>
+   <button class="down" data-jog="Y" data-dir="-1"><b>&#x25BC;</b>ALT &#x2212;</button>
+  </div>
+  <label>Step (')</label>
+  <div class="row steps"><button data-step="0.1">0.1</button><button data-step="1" class="on">1</button><button data-step="5">5</button><button data-step="10">10</button><button data-step="30">30</button><input id="custom" type="number" step="0.1" min="0.1" value="1"></div>
+  <div class="row"><div><label>Speed (steps/s)</label><input id="feed" type="number" min="50" max="3000" value="1000"></div></div></div>
+</section>
+
+<section id="cal">
+ <div class="card"><p style="font-size:13px;color:var(--dim)">Start the PA on ASIAIR and wait for the adjustment step, then calibrate. Each axis moves a little and comes back.</p>
+  <div class="row"><div><label>Response threshold (')</label><input id="calTh" type="number" step="0.5" min="1" max="20"></div><button id="calSaveTh">Save</button></div>
+  <div class="row" style="margin-top:8px"><button class="primary" id="calStart">Calibrate</button><button id="calStop">Stop</button></div>
+  <p id="calProgress" style="font-size:13px"></p>
+  <div id="calResult" hidden><div class="big"><div><small>AZ (X) steps per '</small><span id="calX">-</span></div><div><small>ALT (Y) steps per '</small><span id="calY">-</span></div></div>
+   <div class="row" style="margin-top:8px"><button class="primary" id="calSave">Save</button><button id="calDiscard">Discard</button></div></div>
+  <p id="calOffset" style="font-size:13px;color:var(--dim)"></p></div>
+ <div class="card"><label>Factors by hand</label>
+  <div class="row"><div><label>AZ (X) steps per arcmin</label><input id="fx" type="number" step="0.001"></div><div><label>ALT (Y) steps per arcmin</label><input id="fy" type="number" step="0.001"></div></div>
+  <button id="saveFactors" style="width:100%;margin-top:8px">Save factors</button></div>
+</section>
+
+<section id="sys">
+ <div class="card"><label>Alignment</label><div class="row"><div><label>Tolerance (')</label><input id="tol" type="number" step="0.1"></div><div><label>Move cap (')</label><input id="cap" type="number" step="1"></div></div>
+  <div class="row"><div><label>Settle (ms)</label><input id="settle" type="number" step="100"></div><div><label>Speed (steps/s)</label><input id="sfeed" type="number" step="50"></div></div>
+  <button id="saveSettings" style="width:100%;margin-top:8px">Save</button></div>
+ <div class="card"><label>ASIAIR address</label><p class="note">Empty = automatic on the ASIAIR hotspot.</p>
+  <div class="row"><input id="ahost" placeholder="automatic"><button id="saveHost" style="flex:0 0 auto">Save</button></div>
+  <div id="asiairInfo" style="font-size:12px;color:var(--dim);margin-top:6px"></div></div>
+ <div class="card"><label>Motor direction</label><p class="note">Like swapping two wires of the motor: every move of that axis turns the other way, whoever moves it. Applied as soon as the axis stands still.</p>
+  <div class="row"><button id="invX" data-invert="X">AZ (X): normal</button><button id="invY" data-invert="Y">ALT (Y): normal</button></div></div>
+ <div class="card"><label>Motor drivers</label><p class="note">Active values; a PC connected over USB or WiFi sends its own when it connects.</p>
+  <div id="drivers"></div></div>
+ <div class="card"><label>Simulation</label><p class="note">Moves the real motors, simulates the error.</p>
+  <div class="row"><div><label>Start az (')</label><input id="simAz" type="number" value="30"></div><div><label>Start alt (')</label><input id="simAlt" type="number" value="-20"></div></div>
+  <div class="row"><div><label>Factor</label><input id="simFactor" type="number" value="60"></div><div><label>Reading every (ms)</label><input id="simRefresh" type="number" value="4000"></div></div>
+  <div class="row" style="margin-top:8px"><button id="simOn">Enable</button><button id="simOff">Disable</button></div></div>
+ <div class="card"><label>Firmware update over WiFi</label>
+  <div class="row"><div id="otaCurBox"><label>Current password</label><input id="otaCur" type="password"></div><div><label>New password (8-64)</label><input id="otaNew" type="password"></div></div>
+  <button id="otaSetPw" style="width:100%;margin-top:6px">Set password</button>
+  <div class="row" style="margin-top:10px"><input id="otaFile" type="file" accept=".bin"></div>
+  <div class="row"><div><label>Update password</label><input id="otaPw" type="password"></div><button class="primary" id="otaUpload" style="flex:0 0 auto">Upload</button></div>
+  <div id="otaInfo" style="font-size:12px;color:var(--dim);margin-top:6px"></div></div>
+ <div class="card"><label>Events</label><ul id="events"></ul></div>
+ <div class="card"><div id="info" style="font-size:13px;color:var(--dim)"></div><button id="wifiReset" style="width:100%;margin-top:8px">Forget network (restart into OAPA-setup)</button></div>
+</section>
+
+<nav><button data-tab="align" class="on">Align</button><button data-tab="move">Move</button><button data-tab="cal">Calibrate</button><button data-tab="sys">System</button></nav>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(2) + "'";
+let settings = {factorX: 1, factorY: 1, feed: 1000}, lastEvent = 0, lastSample = 0, samples = [];
+let calDiscarded = false;
+
+async function api(path, fields) {
+  const opt = fields ? {method: 'POST', body: new URLSearchParams(fields)} : {};
+  const r = await fetch(path, opt);
+  const text = await r.text();
+  if (!r.ok) { $('msg').textContent = text; throw new Error(text); }
+  $('msg').textContent = '';
+  try { return JSON.parse(text); } catch (e) { return text; }
+}
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('section').forEach(s => s.classList.toggle('on', s.id === b.dataset.tab));
+});
+
+$('stop').onclick = () => api('/api/stop', {});
+$('startLoop').onclick = () => api('/api/loop/start', {});
+$('stopLoop').onclick = () => api('/api/loop/stop', {});
+
+const markStep = () => document.querySelectorAll('[data-step]').forEach(x => x.classList.toggle('on', Number(x.dataset.step) === Number($('custom').value)));
+document.querySelectorAll('[data-step]').forEach(b => b.onclick = () => { $('custom').value = b.dataset.step; markStep(); });
+$('custom').oninput = markStep;
+document.querySelectorAll('[data-jog]').forEach(b => b.onclick = () =>
+  api('/api/move', {axis: b.dataset.jog, arcmin: b.dataset.dir * $('custom').value, feed: $('feed').value}));
+$('padStop').onclick = () => api('/api/stop', {});
+
+async function loadSettings() {
+  settings = await api('/api/settings');
+  $('fx').value = settings.factorX; $('fy').value = settings.factorY;
+  $('tol').value = settings.tolerance; $('cap').value = settings.cap; $('settle').value = settings.settleMs; $('sfeed').value = settings.feed;
+  $('calTh').value = settings.calThresholdArcmin; $('ahost').value = settings.asiairHost;
+}
+$('saveFactors').onclick = async () => { await api('/api/settings', {factorX: $('fx').value, factorY: $('fy').value}); loadSettings(); };
+$('saveSettings').onclick = async () => { await api('/api/settings', {tolerance: $('tol').value, cap: $('cap').value, settleMs: $('settle').value, feed: $('sfeed').value}); loadSettings(); };
+$('calSaveTh').onclick = async () => { await api('/api/settings', {calThresholdArcmin: $('calTh').value}); loadSettings(); };
+$('saveHost').onclick = async () => { await api('/api/settings', {asiairHost: $('ahost').value.trim()}); loadSettings(); };
+$('calStart').onclick = () => { calDiscarded = false; api('/api/calibrate/start', {}); };
+$('calStop').onclick = () => api('/api/calibrate/stop', {});
+$('calSave').onclick = async () => { await api('/api/calibrate/save', {}); calDiscarded = true; loadSettings(); };
+$('calDiscard').onclick = () => { calDiscarded = true; $('calResult').hidden = true; };
+
+let direction = {invertX: false, invertY: false};
+function showDirection() {
+  for (const axis of ['X', 'Y']) {
+    const inverted = direction['invert' + axis], b = $('inv' + axis);
+    b.textContent = (axis === 'X' ? 'AZ (X): ' : 'ALT (Y): ') + (inverted ? 'inverted' : 'normal');
+    b.classList.toggle('sel', inverted);
+  }
+}
+async function loadDirection() { direction = await api('/api/direction'); showDirection(); }
+document.querySelectorAll('[data-invert]').forEach(b => b.onclick = async () => {
+  const axis = b.dataset.invert;
+  await api('/api/direction', {axis, invert: direction['invert' + axis] ? 0 : 1});
+  await loadDirection();
+});
+async function loadDrivers() {
+  const d = await api('/api/drivers');
+  $('drivers').innerHTML = ['x', 'y'].map(a => `<div class="row" style="margin-top:6px"><b style="flex:0 0 1.5em">${a.toUpperCase()}</b>
+    <div><label>mA</label><input id="${a}run" type="number" value="${d[a].run}"></div>
+    <div><label>hold %</label><input id="${a}hold" type="number" value="${d[a].hold}"></div>
+    <div><label>microsteps</label><input id="${a}micro" type="number" value="${d[a].micro}"></div>
+    <button data-drv="${a}">Apply</button></div>`).join('');
+  document.querySelectorAll('[data-drv]').forEach(b => b.onclick = async () => {
+    const a = b.dataset.drv;
+    await api('/api/drivers', {axis: a.toUpperCase(), run: $(a + 'run').value, hold: $(a + 'hold').value, micro: $(a + 'micro').value});
+    setTimeout(loadDrivers, 500);
+  });
+}
+
+$('simOn').onclick = () => api('/api/sim', {enable: 1, az: $('simAz').value, alt: $('simAlt').value, factor: $('simFactor').value, refresh_ms: $('simRefresh').value});
+$('simOff').onclick = () => api('/api/sim', {enable: 0});
+async function loadOta() {
+  const o = await api('/api/ota');
+  $('otaCurBox').hidden = !o.passwordSet;
+  $('otaSetPw').textContent = o.passwordSet ? 'Change password' : 'Set password';
+  $('otaUpload').disabled = !o.passwordSet;
+  $('otaInfo').textContent = (o.passwordSet ? '' : 'Set a password to enable updates. ') + `running slot ${o.partition}` +
+    (o.lockedMs ? ` · locked for ${(o.lockedMs / 1000).toFixed(0)} s` : '');
+}
+$('otaSetPw').onclick = async () => {
+  await api('/api/ota/password', {current: $('otaCur').value, password: $('otaNew').value});
+  $('otaCur').value = ''; $('otaNew').value = ''; loadOta();
+};
+$('otaUpload').onclick = () => {
+  const file = $('otaFile').files[0];
+  if (!file) { $('msg').textContent = 'choose firmware.bin first'; return; }
+  const form = new FormData(); form.append('firmware', file, file.name);
+  const x = new XMLHttpRequest();
+  x.open('POST', '/api/ota');
+  x.setRequestHeader('X-OTA-Password', $('otaPw').value);
+  x.upload.onprogress = e => { if (e.lengthComputable) $('otaInfo').textContent = `uploading ${Math.round(100 * e.loaded / e.total)} %`; };
+  x.onload = () => {
+    $('otaInfo').textContent = `${x.status} ${x.responseText}`;
+    if (x.status === 200) setTimeout(() => location.reload(), 15000); else { $('otaUpload').disabled = false; loadOta(); }
+  };
+  x.onerror = () => { $('otaInfo').textContent = 'upload failed: connection lost'; $('otaUpload').disabled = false; };
+  $('otaUpload').disabled = true;  // a second tap must not start a second upload
+  x.send(form);
+};
+$('wifiReset').onclick =() => { if (confirm('Forget the saved network and the update password, and restart into OAPA-setup?')) api('/api/wifi/reset', {}); };
+
+function drawChart() {
+  const svg = $('chart');
+  if (samples.length < 2) { svg.innerHTML = ''; return; }
+  const values = samples.flatMap(s => [s[2], s[3], Math.hypot(s[2], s[3])]);
+  const hi = Math.max(1, ...values), lo = Math.min(0, ...values), t0 = samples[0][1], t1 = samples[samples.length - 1][1];
+  const x = t => 300 * (t - t0) / Math.max(1, t1 - t0), y = v => 155 - 150 * (v - lo) / (hi - lo);
+  const line = (pick, color) => `<polyline fill="none" stroke="${color}" stroke-width="1" points="${samples.map(s => x(s[1]).toFixed(1) + ',' + y(pick(s)).toFixed(1)).join(' ')}"/>`;
+  svg.innerHTML = `<line x1="0" x2="300" y1="${y(0)}" y2="${y(0)}" stroke="#2a2a2a"/>` +
+    line(s => s[2], '#d0d0d0') + line(s => s[3], '#777') + line(s => Math.hypot(s[2], s[3]), '#ffffff') +
+    samples.filter(s => s[4]).map(s => `<circle cx="${x(s[1]).toFixed(1)}" cy="150" r="2" fill="#8a8a8a"/>`).join('');
+}
+
+async function pollFast() {
+  try {
+    const s = await api('/api/status');
+    $('nina').hidden = !s.ninaActive;
+    $('net').textContent = `${s.network} ${s.rssi} dBm`;
+    $('posX').textContent = fmt(s.x / settings.factorX); $('posY').textContent = fmt(s.y / settings.factorY);
+    $('steps').textContent = `steps X ${s.x} · Y ${s.y} · ${s.state}`;
+    document.querySelectorAll('#move button').forEach(b => b.disabled = s.ninaActive);
+    $('info').textContent = `firmware ${s.fw} · boot ${s.boots} (${s.reset}) · up ${s.uptime}s`;
+  } catch (e) { $('net').textContent = 'no connection to OAPA'; }
+  setTimeout(pollFast, 400);
+}
+
+async function pollSlow() {
+  try {
+    const l = await api('/api/loop');
+    $('source').textContent = l.source === 'sim' ? 'SIMULATION' : l.source === 'asiair' ? 'ASIAIR' : l.source === 'nina' ? 'PC' : 'no source';
+    $('source').className = 'badge' + (l.source === 'none' ? '' : ' sim');
+    const a = await api('/api/asiair');
+    const age = a.reading ? ` · last reading ${(a.ageMs / 1000).toFixed(0)} s ago` : '';
+    $('asiair').textContent = !a.connected ? 'ASIAIR: not found' + (a.host ? ` (${a.host})` : '')
+      : `ASIAIR: connected · ${a.adjusting ? 'PA adjusting' : a.ended ? a.endReason : 'no PA'}${age}`;
+    $('phase').textContent = a.phase || '-';
+    $('asiairInfo').textContent = `host ${a.host || '-'} · lines ${a.lines} · bad ${a.badLines} · rejected ${a.rejected}`;
+    const c = await api('/api/calibrate');
+    const calBusy = ['preloading', 'baseline', 'probing', 'measuring', 'restoring'].includes(c.state);
+    const loopBusy = l.phase !== 'idle' && l.phase !== 'ended';
+    $('startLoop').disabled = !l.sourceReady || calBusy;
+    $('startLoop').textContent = l.sourceReady ? 'Start automatic' : 'Start the PA on ASIAIR';
+    $('calStart').disabled = !l.sourceReady || loopBusy || calBusy;
+    $('calProgress').textContent = c.state === 'idle' ? '' : `${c.state} · ${c.reason}`;
+    $('calResult').hidden = c.state !== 'done' || calDiscarded;
+    if (c.state === 'done') {
+      $('calX').textContent = `${c.x.factor.toFixed(1)} ${c.x.sign > 0 ? '(+)' : '(−)'}`;
+      $('calY').textContent = `${c.y.factor.toFixed(1)} ${c.y.sign > 0 ? '(+)' : '(−)'}`;
+    }
+    $('calOffset').textContent = (c.state === 'stopped' || c.state === 'failed') && (c.offset.x || c.offset.y)
+      ? `Axes away from where calibration started: X ${c.offset.x} steps, Y ${c.offset.y} steps. Move them back from Move if needed.` : '';
+    $('loopState').textContent = l.phase + (l.outcome !== 'none' ? ' · ' + l.outcome.replace('nina', 'pc').replace(/_/g, ' ') : '');
+    $('reason').textContent = l.reason;
+    if (l.reading) { $('az').textContent = fmt(l.az); $('alt').textContent = fmt(l.alt); $('tot').textContent = l.total.toFixed(2) + "'"; }
+    const h = await api('/api/history?since=' + lastSample);
+    if (h.samples.length) { samples = samples.concat(h.samples).slice(-300); lastSample = h.last; drawChart(); }
+    const e = await api('/api/events?since=' + lastEvent);
+    if (e.events.length) {
+      lastEvent = e.last;
+      for (const ev of e.events) {
+        const li = document.createElement('li');
+        li.innerHTML = `<b>${(ev.t / 1000).toFixed(0)}s ${ev.code}</b>`; li.append(ev.text);
+        $('events').prepend(li);
+        if (ev.code === 'move' || ev.code === 'loop') $('moves').prepend(li.cloneNode(true));
+      }
+      while ($('events').children.length > 100) $('events').lastChild.remove();
+      while ($('moves').children.length > 20) $('moves').lastChild.remove();
+    }
+  } catch (e) {}
+  setTimeout(pollSlow, 1500);
+}
+
+loadSettings().then(loadDirection).then(loadDrivers).then(loadOta).catch(() => {});
+pollFast(); pollSlow();
+</script>
+</body></html>

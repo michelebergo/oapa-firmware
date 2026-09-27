@@ -1,0 +1,5 @@
+.pio/
+src/web_assets.h
+tests/host/build/
+__pycache__/
+captures/
