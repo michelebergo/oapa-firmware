@@ -29,7 +29,7 @@
  * polar error it is given (by N.I.N.A.'s TPPA plugin or by ASIAIR).
  *
  * 1.3.0: the board runs the alignment. Error sources: N.I.N.A. over USB or
- * WiFi (TCP 2323, bridge commands $E= $F= $A= $B= $T= $C= $K? $L?) and
+ * WiFi (TCP 2323, bridge commands $E= $F= $A= $B= $T= $M= $C= $K? $L?) and
  * ASIAIR's polar alignment; automatic calibration of factors and backlash;
  * phone web page; firmware update over WiFi. The 1.2.3 protocol region
  * (src/oapa_protocol.inc) is unchanged, STEP/DIR driver builds included.
@@ -198,6 +198,9 @@ String dispatchSerialLine(String line) {
     }
     case ninabridge::Kind::Tolerance:
       loopservice::ninaTolerance(command.a);
+      return "ok";
+    case ninabridge::Kind::MoveCap:
+      loopservice::ninaMoveCap(command.a);
       return "ok";
     case ninabridge::Kind::Backlash:
       loopservice::ninaBacklash(command.axis, command.mode, command.a, command.b);

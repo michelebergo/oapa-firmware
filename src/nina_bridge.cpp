@@ -37,7 +37,7 @@ Command parse(const char *line) {
     c.kind = Kind::CalibrationQuery;
     return c;
   }
-  if (*rest != '=' || (letter != 'E' && letter != 'F' && letter != 'A' && letter != 'B' && letter != 'T' && letter != 'C')) return c;
+  if (*rest != '=' || (letter != 'E' && letter != 'F' && letter != 'A' && letter != 'B' && letter != 'T' && letter != 'C' && letter != 'M')) return c;
   const char *value = rest + 1;
 
   if (letter == 'T') {
@@ -45,6 +45,13 @@ Command parse(const char *line) {
     c.a = std::strtod(value, &end);
     bool valid = end != value && *end == 0 && std::isfinite(c.a) && c.a > 0 && c.a <= 60;
     c.kind = valid ? Kind::Tolerance : Kind::Invalid;
+    return c;
+  }
+  if (letter == 'M') {
+    char *end = nullptr;
+    c.a = std::strtod(value, &end);
+    bool valid = end != value && *end == 0 && std::isfinite(c.a) && c.a >= 1 && c.a <= 120;
+    c.kind = valid ? Kind::MoveCap : Kind::Invalid;
     return c;
   }
   if (letter == 'B') {

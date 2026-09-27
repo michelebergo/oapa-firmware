@@ -51,6 +51,7 @@ double ninaFactorY = 0;
 paloop::AxisBacklash ninaBacklashX;  // Off until the plugin pushes its values
 paloop::AxisBacklash ninaBacklashY;
 double ninaToleranceArcmin = 0;  // 0 until the plugin pushes TPPA's tolerance
+double ninaMoveCapArcmin = 0;    // 0 until the plugin pushes its move cap: the board's own applies
 bool ninaFactorsPushed = false;    // the plugin sends $F= only for calibrated factors
 bool ninaCalibrateRequested = false;
 bool ninaAlignAfterCalibration = true;  // false: $C=2, the readings are not a polar error
@@ -277,6 +278,8 @@ void ninaBacklash(char axis, char mode, double plusArcmin, double minusArcmin) {
 
 void ninaTolerance(double arcmin) { ninaToleranceArcmin = arcmin; }
 
+void ninaMoveCap(double arcmin) { ninaMoveCapArcmin = arcmin; }
+
 void ninaStart() { ninaStartPending = true; }
 
 void ninaStop() {
@@ -438,6 +441,7 @@ const char *tick(uint32_t nowMs, bool ninaActive, long stepsX, long stepsY, bool
       settings.backlashX = ninaBacklashX;
       settings.backlashY = ninaBacklashY;
       if (ninaToleranceArcmin > 0) settings.toleranceArcmin = ninaToleranceArcmin;
+      if (ninaMoveCapArcmin > 0) settings.userCapArcmin = ninaMoveCapArcmin;
       alignment.configure(settings);
       passMaxUs = 0;
       bool afterCalibration = ninaStartAfterCalibration;
@@ -448,8 +452,8 @@ const char *tick(uint32_t nowMs, bool ninaActive, long stepsX, long stepsY, bool
         lastMoves = 0;
         movesAtLastSample = 0;
         ninaReadingTaken = false;
-        device::logEvent("loop", "run started (PC), factors %.2f / %.2f, tolerance %.2f'", settings.factorX,
-                         settings.factorY, settings.toleranceArcmin);
+        device::logEvent("loop", "run started (PC), factors %.2f / %.2f, tolerance %.2f', cap %.0f'", settings.factorX,
+                         settings.factorY, settings.toleranceArcmin, settings.userCapArcmin);
       }
     }
   }

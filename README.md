@@ -90,6 +90,7 @@ Alignment commands (since 1.3.0), used by the TPPA plugin:
 | `$F=<fx>,<fy>` | Steps per azimuth / altitude arcminute, when the host knows them |
 | `$B=<axis>,<mode>,<plus>,<minus>` | Backlash of one axis: mode `O`ff, `S`oft, `F`ull or `U`nidirectional; arcminutes entering the positive / negative direction |
 | `$T=<arcmin>` | Alignment tolerance (the host's own, so both stop at the same error) |
+| `$M=<arcmin>` | Largest single correction, 1–120 arcminutes; until sent, the move cap saved on the board applies |
 | `$A=1` / `$A=0` | Start / stop an alignment |
 | `$C=1` / `$C=2` / `$C=0` | Calibrate, then align / calibrate only / stop a calibration |
 | `$L?` | Alignment status, one line: `<L|phase:...|outcome:...|moves:...|az:...|alt:...|plan:...|reason:...|>` |

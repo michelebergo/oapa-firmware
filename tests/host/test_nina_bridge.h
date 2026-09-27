@@ -162,6 +162,16 @@ TEST(NB_Tolerance_ParsesArcmin_WithinBounds) {
   }
 }
 
+TEST(NB_MoveCap_ParsesArcmin_WithinBounds) {
+  auto c = ninabridge::parse("$M=120");
+  CHECK(c.kind == Kind::MoveCap);
+  CHECK_NEAR(c.a, 120.0, 1e-9);
+  CHECK(ninabridge::parse("$M=1").kind == Kind::MoveCap);
+  for (const char *line : {"$M=0", "$M=0.5", "$M=-5", "$M=121", "$M=", "$M=30x"}) {
+    CHECK(ninabridge::parse(line).kind == Kind::Invalid);
+  }
+}
+
 TEST(NB_Calibration_StartStopAndQuery) {
   CHECK(ninabridge::parse("$C=1").kind == Kind::CalibrateStart);
   CHECK(ninabridge::parse("$C=0").kind == Kind::CalibrateStop);
