@@ -111,3 +111,28 @@ TEST(AC_AMoveCapUpTo120ArcminIsHonoured) {
   CHECK(controller.maximumMoveMagnitude() == 120.0);
 }
 
+// OAPA units: errors in degrees, commands in axis arcminutes, so a mount that moves the
+// sky 1' per commanded arcminute responds 1/60 degree per unit. With the configured factor
+// 17% below the true one (12.5 against 15 steps per arcmin) it is 0.833/60. Once both axes
+// are probed the learned model is exact, and the correction must use both axes at once
+// instead of one axis at half its error.
+TEST(AC_OapaUnits_TheLearnedModelDrivesBothAxesAtOnce) {
+  AdjustController controller;
+  controller.aggressiveCorrections = true;
+  controller.setMaximumMoveMagnitude(120.0);
+  const double k = (12.5 / 15.0) / 60.0;
+  const double plant[2][2] = {{k, 0.0}, {0.0, k}};
+  double az = 2.0, alt = -1.0;  // 120' and -60'
+  controller.updateObservation(az, alt);
+  bool twoAxis = false;
+  for (int i = 0; i < 4 && !twoAxis; i++) {
+    AdjustmentPlan plan = controller.createPlan();
+    CHECK(plan.hasMovement());
+    if (!plan.isProbe && plan.x != 0 && plan.y != 0) twoAxis = true;
+    az += plant[0][0] * plan.x + plant[0][1] * plan.y;
+    alt += plant[1][0] * plan.x + plant[1][1] * plan.y;
+    controller.noteSuccessfulExecution(plan);
+    controller.updateObservation(az, alt);
+  }
+  CHECK(twoAxis);
+}

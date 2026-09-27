@@ -25,7 +25,8 @@ struct ScenarioResult {
   paloop::Outcome outcome = paloop::Outcome::None;
   std::string reason;
   double finalTrueErrorArcmin = 0;
-  int moves = 0;
+  int moves = 0;        // axis moves: a two-axis correction counts two
+  int corrections = 0;  // correction cycles (probes included), each paid with readings
   int capViolations = 0;
   paloop::ActionKind lastActionKind = paloop::ActionKind::None;
   uint32_t elapsedMs = 0;
@@ -90,6 +91,7 @@ inline ScenarioResult runScenario(const ScenarioOptions &opt) {
   double az = 0, alt = 0;
   sim.trueError(az, alt);
   r.finalTrueErrorArcmin = std::hypot(az, alt);
+  r.corrections = alignment.movesCommanded();
   r.outcome = alignment.outcome();
   r.reason = alignment.reason();
   return r;

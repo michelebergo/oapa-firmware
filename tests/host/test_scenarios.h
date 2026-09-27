@@ -138,3 +138,27 @@ TEST(SC_SixArcminBacklash_CompensatedByTheLoop_Finishes) {
   CHECK(scExpect(r, {Outcome::Finished}));
   CHECK(scNearTolerance(r, o));
 }
+
+// The bench case of 27/09/2026 (firmware 1.3.0, real motors, simulated sky): 120'/-60',
+// factors told 12.5 against a true 15, move cap 120', a reading every 4 s showing the axes
+// 3 s earlier and the first reading after a move discarded. It took 16 corrections, each one
+// axis at half its error. Correcting 75% of the error on both axes per move, 134' falls below
+// the 1' tolerance in 4 corrections after the 2 probes; 2 more allow for noise.
+TEST(SC_BenchCase_LargeErrorClosesInAFewTwoAxisCorrections) {
+  auto o = scBase();
+  o.settings.factorX = 12.5;
+  o.settings.factorY = 12.5;
+  o.settings.userCapArcmin = 120;
+  o.settings.readingsToSkipAfterMotion = 1;
+  o.sim.x.trueStepsPerArcmin = 15;
+  o.sim.y.trueStepsPerArcmin = 15;
+  o.sim.initialAzArcmin = 120;
+  o.sim.initialAltArcmin = -60;
+  o.readoutLagMs = 3000;
+  auto r = runScenario(o);
+  CHECK(scExpect(r, {Outcome::Finished}));
+  CHECK(scNearTolerance(r, o));
+  CHECK(r.capViolations == 0);
+  std::printf("  bench case: %d corrections, %d axis moves, %u ms\n", r.corrections, r.moves, r.elapsedMs);
+  CHECK(r.corrections <= 8);
+}
