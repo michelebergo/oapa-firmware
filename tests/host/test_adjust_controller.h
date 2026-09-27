@@ -136,3 +136,27 @@ TEST(AC_OapaUnits_TheLearnedModelDrivesBothAxesAtOnce) {
   }
   CHECK(twoAxis);
 }
+
+// A learned model in which both axes push the error almost the same way (relative
+// determinant 1e-4) is not a mount, it is a model learned from bad readings: solving it for
+// both axes asks for huge opposite moves (+1000'/-1000' for a 10' error, cut only by the
+// cap). Such a system is refused and the prudent single-axis correction is used instead.
+TEST(AC_ANearlySingularModel_IsNotSolvedForBothAxes) {
+  AdjustController controller;
+  controller.aggressiveCorrections = true;
+  controller.setMaximumMoveMagnitude(120.0);
+  const double k = 1.0 / 60.0;
+  const double plant[2][2] = {{k, k}, {0.0, 0.01 * k}};
+  double az = 0.0, alt = -10.0 / 60.0;
+  controller.updateObservation(az, alt);
+  for (int i = 0; i < 2; i++) {  // the two probes teach the model
+    AdjustmentPlan probe = controller.createPlan();
+    CHECK(probe.isProbe);
+    az += plant[0][0] * probe.x + plant[0][1] * probe.y;
+    alt += plant[1][0] * probe.x + plant[1][1] * probe.y;
+    controller.noteSuccessfulExecution(probe);
+    controller.updateObservation(az, alt);
+  }
+  AdjustmentPlan plan = controller.createPlan();
+  CHECK(plan.reason.find("two-axis") == std::string::npos);
+}

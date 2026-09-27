@@ -21,7 +21,7 @@ bool trySolveLeastSquaresCommand(double azPerX, double azPerY, double altPerX, d
   // Relative to the scale of the system: the responses are degrees per commanded arcminute
   // (about 1/60), so the determinant is of order (1/60)^4 = 8e-8 and an absolute 1e-6
   // refused every well-posed system, leaving only the single-axis fallback at half the error.
-  if (std::fabs(determinant) <= damping * m00 * m11) {
+  if (std::fabs(determinant) <= AdjustController::kMinimumRelativeDeterminant * m00 * m11) {
     x = 0;
     y = 0;
     return false;

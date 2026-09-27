@@ -33,6 +33,12 @@ class AdjustController {
   static constexpr double kMinimumConfigurableMoveMagnitude = 1.0;
   static constexpr double kMaximumConfigurableMoveMagnitude = 120.0;  // the page allows a move cap up to 120 arcmin
   static constexpr double kNormalEquationDamping = 1e-6;
+  // The two-axis system is solved only when its determinant is at least this fraction of
+  // m00 * m11, i.e. when the axes push the error in clearly different directions. 0.03 is
+  // what the original absolute 1e-6 meant on the plants it was written for (0.08 and 0.07
+  // degrees per unit: 1e-6 / 3.1e-5); as a fraction it holds in OAPA's degree-per-arcminute
+  // units too. A real mount is near 1 (0.70 even with 0.3 cross-coupling).
+  static constexpr double kMinimumRelativeDeterminant = 0.03;
   static constexpr double kMinimumExpectedImprovementFactor = 0.99;
   static constexpr double kModelResetWorseningFactor = 1.05;
   static constexpr size_t kMaxSamples = 12;
