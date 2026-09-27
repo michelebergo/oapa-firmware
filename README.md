@@ -4,6 +4,8 @@ Reference firmware for **OAPA-compatible automated polar alignment platforms**. 
 
 An OAPA platform sits between tripod and mount and adjusts the mount's **altitude and azimuth** with two stepper motors. Since 1.3.0 the **board runs the alignment itself**: it is given the polar alignment error (by TPPA over USB or WiFi, or by ASIAIR), decides every move, and stops at the tolerance. It also calibrates itself: steps per arcminute and backlash of each axis.
 
+> **ASIAIR support is experimental.** The chain from ASIAIR's polar alignment to the board's loop has been checked on the sky; a full calibration and alignment with the motors driving the platform has not yet been done with ASIAIR. The TPPA path has been tested on the bench with real motors.
+
 ## Supported platforms
 
 The firmware is **platform-agnostic**: it drives two stepper motors in steps and learns how they move the mount. Any design that converts two motor rotations into altitude and azimuth adjustments of the mount can be used, for example:
@@ -144,7 +146,7 @@ The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the hi
 
 | Version | Changes |
 |---|---|
-| 1.3.0 | The board runs the alignment: error from TPPA over USB or WiFi (TCP 2323) or from ASIAIR; calibration of factors and backlash; phone web page with arrow pad and motor direction; firmware update over WiFi. PlatformIO project; serial protocol of 1.2.3 unchanged |
+| 1.3.0 | The board runs the alignment: error from TPPA over USB or WiFi (TCP 2323) or from ASIAIR; calibration of factors and backlash; corrections on both axes at once; largest single correction settable up to 120' (page, or `$M=` from the host); phone web page with arrow pad and motor direction; firmware update over WiFi. PlatformIO project; serial protocol of 1.2.3 unchanged |
 | 1.2.3 | `DRIVER_TMC2209` build switch: plain STEP/DIR drivers (A4988, DRV8825, LV8729, ...) without the TMCStepper library; protocol unchanged |
 | 1.2.2 | Hold current default lowered to 25% |
 | 1.2.1 | `F` feed value sets the step rate of a jog (clamped 50–3000); new `!` stop command |
@@ -153,12 +155,16 @@ The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the hi
 
 ## Using it with N.I.N.A.
 
+**Controller aligns** needs a TPPA version with OAPA controller support, coming in a TPPA update. With the TPPA released today the board works as with 1.2.3: the serial protocol is unchanged.
+
 1. Install the Three Point Polar Alignment plugin
 2. In the plugin options, select **OAPA** as the alignment system; in the OAPA panel choose USB (the plugin scans the COM ports) or WiFi (the board's address) and connect
 3. Press **Calibrate** once, with the camera pointed at the sky (or let the board calibrate by itself on the first alignment)
 4. Start TPPA with **Controller aligns** on — the board drives the platform until TPPA's tolerance is reached
 
 ## Using it with ASIAIR
+
+Experimental — see the note at the top.
 
 1. Put the board on the ASIAIR's network (see *Web page and WiFi*)
 2. Start the polar alignment on ASIAIR and open the board's page on the phone
