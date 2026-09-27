@@ -101,3 +101,13 @@ TEST(AC_AggressiveProbe_ScalesWithErrorAndNamesTheAxis) {
   CHECK(plan.y == 0);
   CHECK_EQ_STR(plan.reason, "Probing azimuth response");
 }
+
+// The move cap on the page goes up to 120 arcmin; the controller must not cut it at 60.
+TEST(AC_AMoveCapUpTo120ArcminIsHonoured) {
+  AdjustController controller;
+  controller.setMaximumMoveMagnitude(120.0);
+  CHECK(controller.maximumMoveMagnitude() == 120.0);
+  controller.setMaximumMoveMagnitude(500.0);
+  CHECK(controller.maximumMoveMagnitude() == 120.0);
+}
+

@@ -17,14 +17,14 @@ TEST(DC_LoopConfig_RejectsEachFieldOutOfRange) {
   c.toleranceArcmin = 0.09;  CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
   c.toleranceArcmin = 10.01; CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
   c.userCapArcmin = 0.99;    CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
-  c.userCapArcmin = 60.01;   CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
+  c.userCapArcmin = 120.01;  CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
   c.settleMs = 30001;        CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
   c.feed = 49;               CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
   c.feed = 3001;             CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
   c.factorX = std::nan("");  CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
   c.calThresholdArcmin = 0.99;  CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
   c.calThresholdArcmin = 20.01; CHECK(devset::validateLoop(c) != nullptr); c = LoopConfig();
-  c.factorX = 60; c.factorY = 180; c.toleranceArcmin = 0.1; c.userCapArcmin = 60; c.settleMs = 30000; c.feed = 3000;
+  c.factorX = 60; c.factorY = 180; c.toleranceArcmin = 0.1; c.userCapArcmin = 120; c.settleMs = 30000; c.feed = 3000;
   CHECK(devset::validateLoop(c) == nullptr);
 }
 

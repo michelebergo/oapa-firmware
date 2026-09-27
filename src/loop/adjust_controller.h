@@ -31,7 +31,7 @@ class AdjustController {
   static constexpr double kMinimumMoveMagnitude = 0.05;
   static constexpr double kDefaultMaximumMoveMagnitude = 5.0;
   static constexpr double kMinimumConfigurableMoveMagnitude = 1.0;
-  static constexpr double kMaximumConfigurableMoveMagnitude = 60.0;
+  static constexpr double kMaximumConfigurableMoveMagnitude = 120.0;  // the page allows a move cap up to 120 arcmin
   static constexpr double kNormalEquationDamping = 1e-6;
   static constexpr double kMinimumExpectedImprovementFactor = 0.99;
   static constexpr double kModelResetWorseningFactor = 1.05;
