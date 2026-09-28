@@ -17,17 +17,23 @@
 //                   displacements the plugin measures itself, not a polar error -> ok
 //   $K?             calibration state and result, one line       -> <K|...|>
 //   $L?             loop status, one line                        -> <L|...|>
+//   $G=<seq>        the board's event log, one event per command: the oldest
+//                   event after seq, and the newest sequence number
+//                   -> <G|seq:5|last:7|ms:123456|code:move|text:...|>, or
+//                   <G|seq:-|last:7|> when nothing is newer. "last" below the
+//                   seq asked for means the board restarted: ask from 0 again.
 // A malformed bridge command replies "error". Anything else is not a bridge
 // command and goes to the 1.2.2 dispatcher unchanged.
 #pragma once
 #include <cstddef>
 #include <cstdint>
 
+#include "device_logs.h"
 #include "loop/observation.h"
 
 namespace ninabridge {
 
-enum class Kind { None, Reading, Factors, Start, Stop, StatusQuery, Backlash, Tolerance, MoveCap, CalibrateStart, CalibrateOnly, CalibrateStop, CalibrationQuery, Invalid };
+enum class Kind { None, Reading, Factors, Start, Stop, StatusQuery, Backlash, Tolerance, MoveCap, CalibrateStart, CalibrateOnly, CalibrateStop, CalibrationQuery, EventQuery, Invalid };
 
 struct Command {
   Kind kind = Kind::None;
@@ -35,6 +41,7 @@ struct Command {
   double b = 0;  // alt arcmin, or Y factor
   char axis = 0;  // Backlash: 'X' or 'Y'
   char mode = 0;  // Backlash: 'O', 'S', 'F' or 'U'
+  uint32_t seq = 0;  // EventQuery: the event after this sequence number
 };
 
 Command parse(const char *line);
@@ -89,6 +96,9 @@ struct CalibrationStatus {
 };
 
 size_t formatCalibration(const CalibrationStatus &status, char *out, size_t len);
+
+// What $G= reports; a null item means nothing newer than the seq asked for.
+size_t formatEvent(const EventLog::Item *item, uint32_t lastSeq, char *out, size_t len);
 
 // Decides when a stream of readings starts a run. TPPA solves every few
 // seconds while it runs, so a reading after a silence longer than

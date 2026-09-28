@@ -97,6 +97,7 @@ Alignment commands (since 1.3.0), used by the TPPA plugin:
 | `$C=1` / `$C=2` / `$C=0` | Calibrate, then align / calibrate only / stop a calibration |
 | `$L?` | Alignment status, one line: `<L|phase:...|outcome:...|moves:...|az:...|alt:...|plan:...|reason:...|>` |
 | `$K?` | Calibration status and result: `<K|state:...|x:<factor>,<sign>|y:...|xplay:<+>,<->,<mode>|yplay:...|reason:...|>` |
+| `$G=<seq>` | The board's event log, one event per command (since 1.3.1): the oldest event after `seq`, `<G|seq:...|last:...|ms:...|code:...|text:...|>`, or `<G|seq:-|last:...|>` when nothing is newer. `last` below the `seq` asked for means the board restarted |
 
 A malformed alignment command replies `error`. The `F` feed value is honored from **1.2.1** onward (clamped to 50–3000 steps/s). Driver settings are **not persisted**: they return to the defaults below on every power-up, so a host should push its values after connecting.
 
@@ -146,6 +147,7 @@ The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the hi
 
 | Version | Changes |
 |---|---|
+| 1.3.1 | `$G=`: the host copies the board's event log, which now records every leg of an alignment move, backlash included; `$L?` and `$K?` carry the whole reason instead of cutting it at 95 characters |
 | 1.3.0 | The board runs the alignment: error from TPPA over USB or WiFi (TCP 2323) or from ASIAIR; calibration of factors and backlash; corrections on both axes at once; largest single correction settable up to 120' (page, or `$M=` from the host); phone web page with arrow pad and motor direction; firmware update over WiFi. PlatformIO project; serial protocol of 1.2.3 unchanged |
 | 1.2.3 | `DRIVER_TMC2209` build switch: plain STEP/DIR drivers (A4988, DRV8825, LV8729, ...) without the TMCStepper library; protocol unchanged |
 | 1.2.2 | Hold current default lowered to 25% |

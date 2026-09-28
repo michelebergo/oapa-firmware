@@ -37,6 +37,16 @@ Command parse(const char *line) {
     c.kind = Kind::CalibrationQuery;
     return c;
   }
+  if (letter == 'G' && *rest == '=') {
+    // A sequence number: digits only, within 32 bits.
+    const char *digits = rest + 1;
+    char *end = nullptr;
+    unsigned long long seq = std::strtoull(digits, &end, 10);
+    bool valid = *digits >= '0' && *digits <= '9' && end != digits && *end == 0 && seq <= 0xFFFFFFFFull;
+    c.kind = valid ? Kind::EventQuery : Kind::Invalid;
+    c.seq = valid ? static_cast<uint32_t>(seq) : 0;
+    return c;
+  }
   if (*rest != '=' || (letter != 'E' && letter != 'F' && letter != 'A' && letter != 'B' && letter != 'T' && letter != 'C' && letter != 'M')) return c;
   const char *value = rest + 1;
 
@@ -138,6 +148,25 @@ size_t formatCalibration(const CalibrationStatus &status, char *out, size_t len)
   }
   int n = std::snprintf(out, len, "<K|state:%s|x:%s|y:%s|xplay:%s|yplay:%s|reason:%s|>", status.state, x, y, xp, yp,
                         reason);
+  if (n < 0) return 0;
+  return static_cast<size_t>(n) < len ? static_cast<size_t>(n) : len - 1;
+}
+
+size_t formatEvent(const EventLog::Item *item, uint32_t lastSeq, char *out, size_t len) {
+  if (out == nullptr || len == 0) return 0;
+  int n;
+  if (item == nullptr) {
+    n = std::snprintf(out, len, "<G|seq:-|last:%lu|>", static_cast<unsigned long>(lastSeq));
+  } else {
+    char text[sizeof item->value.text];
+    std::snprintf(text, sizeof text, "%s", item->value.text);
+    for (char *p = text; *p; ++p) {
+      if (*p == '|') *p = '/';
+    }
+    n = std::snprintf(out, len, "<G|seq:%lu|last:%lu|ms:%lu|code:%s|text:%s|>", static_cast<unsigned long>(item->seq),
+                      static_cast<unsigned long>(lastSeq), static_cast<unsigned long>(item->value.uptimeMs),
+                      item->value.code, text);
+  }
   if (n < 0) return 0;
   return static_cast<size_t>(n) < len ? static_cast<size_t>(n) : len - 1;
 }
