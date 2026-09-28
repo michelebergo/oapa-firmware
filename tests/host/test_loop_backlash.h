@@ -93,3 +93,17 @@ TEST(LB_EngagementSetFromOutside_IsWhatTheNextPlanUses) {
   Observation o{30, -20, 100};
   CHECK(lpTick(l, 100, &o).steps == 324);
 }
+
+TEST(LB_EveryLeg_SaysHowFarItMovesInArcmin_ForTheEventLog) {
+  // valo_20260928: the NINA log showed the correction the board chose, not the
+  // legs that carried it; the play the loop added is what went wrong.
+  AlignmentLoop l(lbSettings(BacklashMode::Unidirectional, 4));
+  uint32_t now = 0;
+  LoopAction first = lbRunToFirstCorrection(l, now);
+  auto legs = BacklashPlanner::plan(BacklashMode::Unidirectional, static_cast<float>(l.lastPlan().x), 4.0f, 4.0f,
+                                    Direction::Positive);
+  CHECK(legs.count == 2);
+  CHECK_NEAR(first.arcmin, legs.legs[0], 1e-6);
+  LoopAction second = lbComplete(l, now, AxisId::X);
+  CHECK_NEAR(second.arcmin, legs.legs[1], 1e-6);
+}

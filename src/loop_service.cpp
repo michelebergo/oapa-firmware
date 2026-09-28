@@ -518,6 +518,12 @@ const char *tick(uint32_t nowMs, bool ninaActive, long stepsX, long stepsY, bool
   publish(nowMs, stepsX, stepsY);
   logChanges();
 
+  // Each leg the alignment's move is carried out in, backlash included: the
+  // correction logged above is what the loop asked for, these are what the motor did.
+  if (action.kind == paloop::ActionKind::Move && calibrationAction.kind == paloop::ActionKind::None) {
+    device::logEvent("leg", "%s %+.2f' (%+ld steps)", action.axis == paloop::AxisId::X ? "AZ (X)" : "ALT (Y)",
+                     action.arcmin, action.steps);
+  }
   if (action.kind == paloop::ActionKind::Move) {
     std::snprintf(command, sizeof command, "$J=G91G21%c%ldF%d", action.axis == paloop::AxisId::X ? 'X' : 'Y',
                   action.steps, action.feed);
