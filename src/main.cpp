@@ -192,7 +192,7 @@ String dispatchSerialLine(String line) {
       loopservice::ninaCalibrateStop();
       return "ok";
     case ninabridge::Kind::CalibrationQuery: {
-      char status[160];
+      char status[400];
       loopservice::ninaCalibrationStatus(status, sizeof status);
       return String(status);
     }
@@ -212,7 +212,7 @@ String dispatchSerialLine(String line) {
       loopservice::ninaStop();
       return "ok";
     case ninabridge::Kind::StatusQuery: {
-      char status[200];
+      char status[400];
       loopservice::ninaStatus(status, sizeof status);
       return String(status);
     }

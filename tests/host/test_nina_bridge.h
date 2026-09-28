@@ -202,3 +202,26 @@ TEST(NB_CalibrationStatus_IsOneParseableLine) {
   ninabridge::formatCalibration(none, line, sizeof line);
   CHECK_EQ_STR(line, "<K|state:idle|x:-|y:-|xplay:-|yplay:-|reason:|>");
 }
+
+TEST(NB_Status_CarriesTheWholeReason_ThePluginLogsIt) {
+  // valo_20260928: the NINA log cut the halt reason at "calibration factors or",
+  // leaving out the backlash compensation that was the cause.
+  ninabridge::Status s;
+  s.phase = "ended";
+  s.outcome = "halted_estimate_drift";
+  s.source = "nina";
+  s.moves = 10;
+  s.reason =
+      "Error increased for 3 consecutive measurements while corrections were small; the error estimate appears to "
+      "have drifted. This is not a calibration problem - re-run the alignment to re-measure.";
+  char line[400];
+  ninabridge::formatStatus(s, line, sizeof line);
+  std::string text(line);
+  CHECK(text.find("re-run the alignment to re-measure.|>") != std::string::npos);
+
+  ninabridge::CalibrationStatus c;
+  c.reason = s.reason;
+  ninabridge::formatCalibration(c, line, sizeof line);
+  text = line;
+  CHECK(text.find("re-run the alignment to re-measure.|>") != std::string::npos);
+}

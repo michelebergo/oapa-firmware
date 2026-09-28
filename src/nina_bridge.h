@@ -54,6 +54,10 @@ struct Status {
   const char *reason = "";
 };
 
+// The longest reason a status line carries whole: the plugin logs it, and a
+// halt's cause is at its end.
+constexpr size_t kReasonMax = 256;
+
 // Writes the line (no newline); '|' in the reason becomes '/' so the frame stays parseable.
 size_t formatStatus(const Status &status, char *out, size_t len);
 

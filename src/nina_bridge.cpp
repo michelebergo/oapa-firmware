@@ -94,7 +94,7 @@ Command parse(const char *line) {
 
 size_t formatStatus(const Status &status, char *out, size_t len) {
   if (out == nullptr || len == 0) return 0;
-  char reason[96];
+  char reason[kReasonMax];
   std::snprintf(reason, sizeof reason, "%s", status.reason ? status.reason : "");
   for (char *p = reason; *p; ++p) {
     if (*p == '|') *p = '/';
@@ -122,7 +122,7 @@ size_t formatStatusFrame(const char *state, long x, long y, const char *version,
 
 size_t formatCalibration(const CalibrationStatus &status, char *out, size_t len) {
   if (out == nullptr || len == 0) return 0;
-  char reason[96];
+  char reason[kReasonMax];
   std::snprintf(reason, sizeof reason, "%s", status.reason ? status.reason : "");
   for (char *p = reason; *p; ++p) {
     if (*p == '|') *p = '/';
