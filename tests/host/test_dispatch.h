@@ -7,7 +7,7 @@ static String run(const char *command) { return dispatchCommand(String(command))
 TEST(StatusProbe_WritesExactlyFrameThenOk) {
   resetFirmwareState();
   CHECK_EQ_STR(run("?").c_str(), "");
-  CHECK_EQ_STR(Serial.out, "<Idle|MPos:0.00,0.00,0.00|V:1.3.0|>\r\nok\r\n");
+  CHECK_EQ_STR(Serial.out, "<Idle|MPos:0.00,0.00,0.00|V:1.3.1|>\r\nok\r\n");
 }
 
 TEST(StatusProbe_ReportsRunWhileMoving) {

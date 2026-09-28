@@ -205,6 +205,7 @@ LoopAction AlignmentLoop::nextLeg(AxisId axis, uint32_t nowMs) {
     move.axis = axis;
     move.steps = steps;
     move.feed = settings_.feed;
+    move.arcmin = leg;
     return move;
   }
   if (axis == AxisId::X) {

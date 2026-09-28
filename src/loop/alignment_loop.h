@@ -61,6 +61,7 @@ struct LoopAction {
   AxisId axis = AxisId::X;
   long steps = 0;
   int feed = 0;
+  double arcmin = 0;  // Move from the loop: the leg in arcmin, backlash included
 };
 
 struct TickInput {

@@ -202,3 +202,52 @@ TEST(NB_CalibrationStatus_IsOneParseableLine) {
   ninabridge::formatCalibration(none, line, sizeof line);
   CHECK_EQ_STR(line, "<K|state:idle|x:-|y:-|xplay:-|yplay:-|reason:|>");
 }
+
+TEST(NB_Status_CarriesTheWholeReason_ThePluginLogsIt) {
+  // valo_20260928: the NINA log cut the halt reason at "calibration factors or",
+  // leaving out the backlash compensation that was the cause.
+  ninabridge::Status s;
+  s.phase = "ended";
+  s.outcome = "halted_estimate_drift";
+  s.source = "nina";
+  s.moves = 10;
+  s.reason =
+      "Error increased for 3 consecutive measurements while corrections were small; the error estimate appears to "
+      "have drifted. This is not a calibration problem - re-run the alignment to re-measure.";
+  char line[400];
+  ninabridge::formatStatus(s, line, sizeof line);
+  std::string text(line);
+  CHECK(text.find("re-run the alignment to re-measure.|>") != std::string::npos);
+
+  ninabridge::CalibrationStatus c;
+  c.reason = s.reason;
+  ninabridge::formatCalibration(c, line, sizeof line);
+  text = line;
+  CHECK(text.find("re-run the alignment to re-measure.|>") != std::string::npos);
+}
+
+TEST(NB_EventQuery_AsksForTheEventAfterASequenceNumber) {
+  auto q = ninabridge::parse("$G=0");
+  CHECK(q.kind == Kind::EventQuery);
+  CHECK(q.seq == 0);
+  q = ninabridge::parse("$G=4294967295");
+  CHECK(q.kind == Kind::EventQuery);
+  CHECK(q.seq == 4294967295u);
+  for (const char *line : {"$G=", "$G=-1", "$G=1.5", "$G=x", "$G=12 3", "$G=4294967296"}) {
+    CHECK(ninabridge::parse(line).kind == Kind::Invalid);
+  }
+}
+
+TEST(NB_Event_IsOneParseableLine_WithTheNewestSequenceNumber) {
+  // The plugin pages through the board's event log one event per command, and
+  // starts over when "last" is below what it asked for: the board restarted.
+  EventLog::Item item;
+  item.seq = 5;
+  item.value = makeEvent(123456, "move", "correction AZ 0.28' | ALT 0.07'");
+  char line[200];
+  ninabridge::formatEvent(&item, 7, line, sizeof line);
+  CHECK_EQ_STR(line, "<G|seq:5|last:7|ms:123456|code:move|text:correction AZ 0.28' / ALT 0.07'|>");
+
+  ninabridge::formatEvent(nullptr, 7, line, sizeof line);
+  CHECK_EQ_STR(line, "<G|seq:-|last:7|>");
+}

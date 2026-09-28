@@ -4,7 +4,7 @@
 #include "stubs/AccelStepper.h"
 #include "stubs/TMCStepper.h"
 
-#define FW_VERSION "1.3.0"
+#define FW_VERSION "1.3.1"
 #define DRIVER_TMC2209 1  // the E4 build; main.cpp sets it for the firmware
 #include "../../src/oapa_protocol.inc"
 #include "../../src/web_bridge.h"

@@ -56,7 +56,7 @@
 
 // Reported in the status frame (V: field). Must stay purely numeric: the
 // plugin's status regex rejects any suffix.
-#define FW_VERSION "1.3.0"
+#define FW_VERSION "1.3.1"
 
 // Verbatim 1.2.3 protocol region - guarded by tools/check_verbatim.py.
 #include "oapa_protocol.inc"
@@ -192,7 +192,7 @@ String dispatchSerialLine(String line) {
       loopservice::ninaCalibrateStop();
       return "ok";
     case ninabridge::Kind::CalibrationQuery: {
-      char status[160];
+      char status[400];
       loopservice::ninaCalibrationStatus(status, sizeof status);
       return String(status);
     }
@@ -212,9 +212,17 @@ String dispatchSerialLine(String line) {
       loopservice::ninaStop();
       return "ok";
     case ninabridge::Kind::StatusQuery: {
-      char status[200];
+      char status[400];
       loopservice::ninaStatus(status, sizeof status);
       return String(status);
+    }
+    case ninabridge::Kind::EventQuery: {
+      EventLog::Item item;
+      uint32_t lastSeq = 0;
+      bool found = device::readEvents(command.seq, &item, 1, lastSeq) == 1;
+      char line[200];
+      ninabridge::formatEvent(found ? &item : nullptr, lastSeq, line, sizeof line);
+      return String(line);
     }
     case ninabridge::Kind::Invalid:
       return "error";
