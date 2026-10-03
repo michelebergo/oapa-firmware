@@ -10,7 +10,7 @@
 //                   arcmin entering the positive / negative direction -> ok
 //   $T=<arcmin>     alignment tolerance of runs N.I.N.A. feeds (TPPA's own,
 //                   so both stop at the same error), 0 < t <= 60   -> ok
-//   $M=<arcmin>     largest single correction of runs N.I.N.A. feeds, 1-120;
+//   $M=<arcmin>     largest single correction of runs N.I.N.A. feeds, 1-180;
 //                   until sent, the move cap saved on the board applies -> ok
 //   $C=1 / $C=0     calibrate before the next alignment / stop a calibration -> ok
 //   $C=2            calibrate only, no alignment after: the readings are field

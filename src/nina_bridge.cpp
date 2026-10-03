@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "move_cap.h"
+
 namespace ninabridge {
 
 namespace {
@@ -60,7 +62,7 @@ Command parse(const char *line) {
   if (letter == 'M') {
     char *end = nullptr;
     c.a = std::strtod(value, &end);
-    bool valid = end != value && *end == 0 && std::isfinite(c.a) && c.a >= 1 && c.a <= 120;
+    bool valid = end != value && *end == 0 && std::isfinite(c.a) && c.a >= 1 && c.a <= kMaxMoveCapArcmin;
     c.kind = valid ? Kind::MoveCap : Kind::Invalid;
     return c;
   }

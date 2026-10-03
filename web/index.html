@@ -161,7 +161,12 @@ async function loadSettings() {
   $('calTh').value = settings.calThresholdArcmin; $('ahost').value = settings.asiairHost;
 }
 $('saveFactors').onclick = async () => { await api('/api/settings', {factorX: $('fx').value, factorY: $('fy').value}); loadSettings(); };
-$('saveSettings').onclick = async () => { await api('/api/settings', {tolerance: $('tol').value, cap: $('cap').value, settleMs: $('settle').value, feed: $('sfeed').value}); loadSettings(); };
+$('saveSettings').onclick = async () => {
+  // A correction above 120' is only safe on a platform that can travel that far.
+  const cap = Number($('cap').value);
+  if (cap > 120 && !confirm('A move cap of ' + cap + "' allows very large corrections. Make sure your platform can travel that far in both directions. Save it?")) { loadSettings(); return; }
+  await api('/api/settings', {tolerance: $('tol').value, cap: $('cap').value, settleMs: $('settle').value, feed: $('sfeed').value}); loadSettings();
+};
 $('calSaveTh').onclick = async () => { await api('/api/settings', {calThresholdArcmin: $('calTh').value}); loadSettings(); };
 $('saveHost').onclick = async () => { await api('/api/settings', {asiairHost: $('ahost').value.trim()}); loadSettings(); };
 $('calStart').onclick = () => { calDiscarded = false; api('/api/calibrate/start', {}); };

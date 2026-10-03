@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 
+#include "move_cap.h"
 #include "web_bridge.h"
 
 namespace devset {
@@ -12,7 +13,7 @@ const char *validateLoop(const LoopConfig &c) {
     return "factors must be > 0 and <= 100000 steps per arcminute";
   }
   if (!(c.toleranceArcmin >= 0.1 && c.toleranceArcmin <= 10)) return "tolerance must be 0.1-10 arcminutes";
-  if (!(c.userCapArcmin >= 1 && c.userCapArcmin <= 120)) return "move cap must be 1-120 arcminutes";
+  if (!(c.userCapArcmin >= 1 && c.userCapArcmin <= kMaxMoveCapArcmin)) return "move cap must be 1-180 arcminutes";
   if (c.settleMs > 30000) return "settle must be 0-30000 ms";
   if (c.feed < 50 || c.feed > 3000) return "feed must be 50-3000 steps/s";
   if (!(c.calThresholdArcmin >= 1 && c.calThresholdArcmin <= 20)) return "calibration threshold must be 1-20 arcminutes";

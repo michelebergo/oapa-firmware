@@ -163,11 +163,11 @@ TEST(NB_Tolerance_ParsesArcmin_WithinBounds) {
 }
 
 TEST(NB_MoveCap_ParsesArcmin_WithinBounds) {
-  auto c = ninabridge::parse("$M=120");
+  auto c = ninabridge::parse("$M=180");
   CHECK(c.kind == Kind::MoveCap);
-  CHECK_NEAR(c.a, 120.0, 1e-9);
+  CHECK_NEAR(c.a, 180.0, 1e-9);
   CHECK(ninabridge::parse("$M=1").kind == Kind::MoveCap);
-  for (const char *line : {"$M=0", "$M=0.5", "$M=-5", "$M=121", "$M=", "$M=30x"}) {
+  for (const char *line : {"$M=0", "$M=0.5", "$M=-5", "$M=181", "$M=", "$M=30x"}) {
     CHECK(ninabridge::parse(line).kind == Kind::Invalid);
   }
 }
