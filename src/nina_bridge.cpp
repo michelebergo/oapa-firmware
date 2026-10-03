@@ -35,6 +35,10 @@ Command parse(const char *line) {
     c.kind = Kind::StatusQuery;
     return c;
   }
+  if (letter == 'M' && std::strcmp(rest, "?") == 0) {
+    c.kind = Kind::MoveCapQuery;
+    return c;
+  }
   if (letter == 'K' && std::strcmp(rest, "?") == 0) {
     c.kind = Kind::CalibrationQuery;
     return c;
@@ -169,6 +173,13 @@ size_t formatEvent(const EventLog::Item *item, uint32_t lastSeq, char *out, size
                       static_cast<unsigned long>(lastSeq), static_cast<unsigned long>(item->value.uptimeMs),
                       item->value.code, text);
   }
+  if (n < 0) return 0;
+  return static_cast<size_t>(n) < len ? static_cast<size_t>(n) : len - 1;
+}
+
+size_t formatMoveCapLimit(char *out, size_t len) {
+  if (out == nullptr || len == 0) return 0;
+  int n = std::snprintf(out, len, "<M|max:%.0f|>", kMaxMoveCapArcmin);
   if (n < 0) return 0;
   return static_cast<size_t>(n) < len ? static_cast<size_t>(n) : len - 1;
 }

@@ -93,6 +93,7 @@ Alignment commands (since 1.3.0), used by the TPPA plugin:
 | `$B=<axis>,<mode>,<plus>,<minus>` | Backlash of one axis: mode `O`ff, `S`oft, `F`ull or `U`nidirectional; arcminutes entering the positive / negative direction |
 | `$T=<arcmin>` | Alignment tolerance (the host's own, so both stop at the same error) |
 | `$M=<arcmin>` | Largest single correction, 1–180 arcminutes; until sent, the move cap saved on the board applies |
+| `$M?` | The largest move cap `$M=` accepts (since 1.3.2): `<M|max:180|>`. Firmware before 1.3.2 answers `ok`; its limit is 120 |
 | `$A=1` / `$A=0` | Start / stop an alignment |
 | `$C=1` / `$C=2` / `$C=0` | Calibrate, then align / calibrate only / stop a calibration |
 | `$L?` | Alignment status, one line: `<L|phase:...|outcome:...|moves:...|az:...|alt:...|plan:...|reason:...|>` |
@@ -147,6 +148,7 @@ The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the hi
 
 | Version | Changes |
 |---|---|
+| 1.3.2 | Move cap up to 180' (page and `$M=`); the page asks before saving one above 120'; `$M?` reports the limit so a host reads it instead of assuming it |
 | 1.3.1 | `$G=`: the host copies the board's event log, which now records every leg of an alignment move, backlash included; `$L?` and `$K?` carry the whole reason instead of cutting it at 95 characters |
 | 1.3.0 | The board runs the alignment: error from TPPA over USB or WiFi (TCP 2323) or from ASIAIR; calibration of factors and backlash; corrections on both axes at once; largest single correction settable up to 120' (page, or `$M=` from the host); phone web page with arrow pad and motor direction; firmware update over WiFi. PlatformIO project; serial protocol of 1.2.3 unchanged |
 | 1.2.3 | `DRIVER_TMC2209` build switch: plain STEP/DIR drivers (A4988, DRV8825, LV8729, ...) without the TMCStepper library; protocol unchanged |

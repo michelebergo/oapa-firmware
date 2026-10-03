@@ -172,6 +172,15 @@ TEST(NB_MoveCap_ParsesArcmin_WithinBounds) {
   }
 }
 
+TEST(NB_MoveCapQuery_ReportsTheLargestMoveCapTheBoardAccepts) {
+  // The host reads the limit instead of assuming it, so raising it needs no host change.
+  // Firmware before 1.3.2 does not know $M? and acknowledges it with "ok": the host takes 120.
+  CHECK(ninabridge::parse("$M?").kind == Kind::MoveCapQuery);
+  char line[64];
+  ninabridge::formatMoveCapLimit(line, sizeof line);
+  CHECK_EQ_STR(line, "<M|max:180|>");
+}
+
 TEST(NB_Calibration_StartStopAndQuery) {
   CHECK(ninabridge::parse("$C=1").kind == Kind::CalibrateStart);
   CHECK(ninabridge::parse("$C=0").kind == Kind::CalibrateStop);
