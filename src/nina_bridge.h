@@ -10,13 +10,14 @@
 //                   arcmin entering the positive / negative direction -> ok
 //   $T=<arcmin>     alignment tolerance of runs N.I.N.A. feeds (TPPA's own,
 //                   so both stop at the same error), 0 < t <= 60   -> ok
-//   $M=<arcmin>     largest single correction of runs N.I.N.A. feeds, 1-120;
+//   $M=<arcmin>     largest single correction of runs N.I.N.A. feeds, 1-180;
 //                   until sent, the move cap saved on the board applies -> ok
 //   $C=1 / $C=0     calibrate before the next alignment / stop a calibration -> ok
 //   $C=2            calibrate only, no alignment after: the readings are field
 //                   displacements the plugin measures itself, not a polar error -> ok
 //   $K?             calibration state and result, one line       -> <K|...|>
 //   $L?             loop status, one line                        -> <L|...|>
+//   $M?             the largest move cap $M= accepts             -> <M|max:180|>
 //   $G=<seq>        the board's event log, one event per command: the oldest
 //                   event after seq, and the newest sequence number
 //                   -> <G|seq:5|last:7|ms:123456|code:move|text:...|>, or
@@ -33,7 +34,7 @@
 
 namespace ninabridge {
 
-enum class Kind { None, Reading, Factors, Start, Stop, StatusQuery, Backlash, Tolerance, MoveCap, CalibrateStart, CalibrateOnly, CalibrateStop, CalibrationQuery, EventQuery, Invalid };
+enum class Kind { None, Reading, Factors, Start, Stop, StatusQuery, Backlash, Tolerance, MoveCap, CalibrateStart, CalibrateOnly, CalibrateStop, CalibrationQuery, EventQuery, MoveCapQuery, Invalid };
 
 struct Command {
   Kind kind = Kind::None;
@@ -96,6 +97,9 @@ struct CalibrationStatus {
 };
 
 size_t formatCalibration(const CalibrationStatus &status, char *out, size_t len);
+
+// What $M? reports: the largest move cap $M= accepts (move_cap.h).
+size_t formatMoveCapLimit(char *out, size_t len);
 
 // What $G= reports; a null item means nothing newer than the seq asked for.
 size_t formatEvent(const EventLog::Item *item, uint32_t lastSeq, char *out, size_t len);

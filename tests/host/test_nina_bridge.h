@@ -163,13 +163,22 @@ TEST(NB_Tolerance_ParsesArcmin_WithinBounds) {
 }
 
 TEST(NB_MoveCap_ParsesArcmin_WithinBounds) {
-  auto c = ninabridge::parse("$M=120");
+  auto c = ninabridge::parse("$M=180");
   CHECK(c.kind == Kind::MoveCap);
-  CHECK_NEAR(c.a, 120.0, 1e-9);
+  CHECK_NEAR(c.a, 180.0, 1e-9);
   CHECK(ninabridge::parse("$M=1").kind == Kind::MoveCap);
-  for (const char *line : {"$M=0", "$M=0.5", "$M=-5", "$M=121", "$M=", "$M=30x"}) {
+  for (const char *line : {"$M=0", "$M=0.5", "$M=-5", "$M=181", "$M=", "$M=30x"}) {
     CHECK(ninabridge::parse(line).kind == Kind::Invalid);
   }
+}
+
+TEST(NB_MoveCapQuery_ReportsTheLargestMoveCapTheBoardAccepts) {
+  // The host reads the limit instead of assuming it, so raising it needs no host change.
+  // Firmware before 1.3.2 does not know $M? and acknowledges it with "ok": the host takes 120.
+  CHECK(ninabridge::parse("$M?").kind == Kind::MoveCapQuery);
+  char line[64];
+  ninabridge::formatMoveCapLimit(line, sizeof line);
+  CHECK_EQ_STR(line, "<M|max:180|>");
 }
 
 TEST(NB_Calibration_StartStopAndQuery) {

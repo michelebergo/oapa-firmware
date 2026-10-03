@@ -8,6 +8,8 @@
 #include <deque>
 #include <string>
 
+#include "../move_cap.h"
+
 namespace paloop {
 
 struct AdjustmentPlan {
@@ -31,7 +33,7 @@ class AdjustController {
   static constexpr double kMinimumMoveMagnitude = 0.05;
   static constexpr double kDefaultMaximumMoveMagnitude = 5.0;
   static constexpr double kMinimumConfigurableMoveMagnitude = 1.0;
-  static constexpr double kMaximumConfigurableMoveMagnitude = 120.0;  // the page allows a move cap up to 120 arcmin
+  static constexpr double kMaximumConfigurableMoveMagnitude = kMaxMoveCapArcmin;  // the largest move cap allowed
   static constexpr double kNormalEquationDamping = 1e-6;
   // The two-axis system is solved only when its determinant is at least this fraction of
   // m00 * m11, i.e. when the axes push the error in clearly different directions. 0.03 is

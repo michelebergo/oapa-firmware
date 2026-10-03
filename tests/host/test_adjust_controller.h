@@ -102,13 +102,13 @@ TEST(AC_AggressiveProbe_ScalesWithErrorAndNamesTheAxis) {
   CHECK_EQ_STR(plan.reason, "Probing azimuth response");
 }
 
-// The move cap on the page goes up to 120 arcmin; the controller must not cut it at 60.
-TEST(AC_AMoveCapUpTo120ArcminIsHonoured) {
+// The move cap goes up to 180 arcmin (page and host); the controller must not cut it below.
+TEST(AC_AMoveCapUpTo180ArcminIsHonoured) {
   AdjustController controller;
-  controller.setMaximumMoveMagnitude(120.0);
-  CHECK(controller.maximumMoveMagnitude() == 120.0);
+  controller.setMaximumMoveMagnitude(180.0);
+  CHECK(controller.maximumMoveMagnitude() == 180.0);
   controller.setMaximumMoveMagnitude(500.0);
-  CHECK(controller.maximumMoveMagnitude() == 120.0);
+  CHECK(controller.maximumMoveMagnitude() == 180.0);
 }
 
 // OAPA units: errors in degrees, commands in axis arcminutes, so a mount that moves the
