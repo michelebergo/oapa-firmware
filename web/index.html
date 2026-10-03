@@ -164,7 +164,8 @@ $('saveFactors').onclick = async () => { await api('/api/settings', {factorX: $(
 $('saveSettings').onclick = async () => {
   // A correction above 120' is only safe on a platform that can travel that far.
   const cap = Number($('cap').value);
-  if (cap > 120 && !confirm('A move cap of ' + cap + "' allows very large corrections. Make sure your platform can travel that far in both directions. Save it?")) { loadSettings(); return; }
+  // Asked only when the cap changes; declining puts back the saved cap and keeps the other fields as typed.
+  if (cap > 120 && cap !== Number(settings.cap) && !confirm('A move cap of ' + cap + "' allows very large corrections. Make sure your platform can travel that far in both directions. Save it?")) { $('cap').value = settings.cap; return; }
   await api('/api/settings', {tolerance: $('tol').value, cap: $('cap').value, settleMs: $('settle').value, feed: $('sfeed').value}); loadSettings();
 };
 $('calSaveTh').onclick = async () => { await api('/api/settings', {calThresholdArcmin: $('calTh').value}); loadSettings(); };
