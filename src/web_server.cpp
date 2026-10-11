@@ -30,6 +30,7 @@ namespace {
 
 AsyncWebServer server(80);
 const char *firmwareVersion = "";
+const char *firmwareBoard = "";
 
 void sendPage(AsyncWebServerRequest *req, const uint8_t *gz, size_t len) {
   AsyncWebServerResponse *res = req->beginResponse(200, "text/html", gz, len);
@@ -126,8 +127,9 @@ void sendSettings(AsyncWebServerRequest *req, const devset::LoopConfig &c) {
 
 }  // namespace
 
-void begin(const char *fwVersion) {
+void begin(const char *fwVersion, const char *board) {
   firmwareVersion = fwVersion;
+  firmwareBoard = board;
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *req) {
     if (net::inSetupMode()) sendPage(req, SETUP_HTML_GZ, SETUP_HTML_GZ_LEN);
@@ -146,6 +148,7 @@ void begin(const char *fwVersion) {
     s.bootCount = net::bootCount();
     s.resetReason = net::resetReasonName();
     s.fwVersion = firmwareVersion;
+    s.board = firmwareBoard;
     char body[256];
     if (formatStatusJson(s, body, sizeof body) < 0) {
       req->send(500, "text/plain", "status too long");

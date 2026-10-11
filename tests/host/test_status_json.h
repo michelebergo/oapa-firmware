@@ -5,7 +5,7 @@ static StatusSnapshot sampleSnapshot() {
   StatusSnapshot s;
   s.x = 1234; s.y = -56; s.running = true; s.homing = false; s.ninaActive = true;
   s.stationConnected = true; s.rssi = -48; s.uptimeS = 12; s.bootCount = 3;
-  s.resetReason = "POWERON"; s.fwVersion = "1.3.0";
+  s.resetReason = "POWERON"; s.fwVersion = "1.3.0"; s.board = "fysetc_e4";
   return s;
 }
 
@@ -14,7 +14,7 @@ TEST(StatusJson_ExactBody) {
   int n = formatStatusJson(sampleSnapshot(), buf, sizeof buf);
   CHECK_EQ_STR(buf, "{\"x\":1234,\"y\":-56,\"state\":\"Run\",\"ninaActive\":true,"
                     "\"network\":\"station\",\"rssi\":-48,\"uptime\":12,\"boots\":3,"
-                    "\"reset\":\"POWERON\",\"fw\":\"1.3.0\"}");
+                    "\"reset\":\"POWERON\",\"fw\":\"1.3.0\",\"board\":\"fysetc_e4\"}");
   CHECK(n == (int)std::strlen(buf));
 }
 

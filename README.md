@@ -64,7 +64,7 @@ The board serves a phone page for use with ASIAIR: live error and chart, start/s
 
 - **First start**: the board opens a WiFi network named `OAPA-setup`; join it and enter the network the ASIAIR uses (2.4 GHz only). The board then joins that network; its address shows in the router's device list and in the page's event log.
 - **Motor direction**: each axis can be set to turn the other way (System tab), like swapping two wires of its motor. It is saved on the board and applies to every move.
-- **Firmware update over WiFi**: from the System tab, protected by a password set on the page.
+- **Firmware update over WiFi**: from the System tab, protected by a password set on the page. When the browser has internet, the page checks the installer site for a newer release and offers to install it: the page downloads the image and sends it to the board, which keeps its settings. Without internet the file upload is the way to update.
 
 ## Serial protocol
 
@@ -151,6 +151,7 @@ The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the hi
 
 | Version | Changes |
 |---|---|
+| 1.3.4 | The page offers a newer release from the installer site and installs it over WiFi; `/api/status` reports the board type |
 | 1.3.3 | `$P?` reports the protocol version; [PROTOCOL.md](PROTOCOL.md) describes the protocol on its own, for other devices |
 | 1.3.2 | Move cap up to 180' (page and `$M=`); the page asks before saving one above 120'; `$M?` reports the limit so a host reads it instead of assuming it |
 | 1.3.1 | `$G=`: the host copies the board's event log, which now records every leg of an alignment move, backlash included; `$L?` and `$K?` carry the whole reason instead of cutting it at 95 characters |

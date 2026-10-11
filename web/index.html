@@ -54,7 +54,7 @@ button.sel{background:#fff;color:#000}
 </style></head><body>
 <header>
  <button id="stop">STOP</button>
- <div id="line"><span id="net">connecting...</span><span id="nina" class="badge warn" hidden>A PC is controlling OAPA</span><span id="source" class="badge">no source</span><span id="asiair" class="badge">ASIAIR: -</span></div>
+ <div id="line"><span id="net">connecting...</span><span id="nina" class="badge warn" hidden>A PC is controlling OAPA</span><span id="source" class="badge">no source</span><span id="asiair" class="badge">ASIAIR: -</span><span id="upd" class="badge warn" hidden style="cursor:pointer"></span></div>
  <div id="msg"></div>
 </header>
 
@@ -116,6 +116,7 @@ button.sel{background:#fff;color:#000}
   <button id="otaSetPw" style="width:100%;margin-top:6px">Set password</button>
   <div class="row" style="margin-top:10px"><input id="otaFile" type="file" accept=".bin"></div>
   <div class="row"><div><label>Update password</label><input id="otaPw" type="password"></div><button class="primary" id="otaUpload" style="flex:0 0 auto">Upload</button></div>
+  <div id="otaNewer" class="row" style="margin-top:10px" hidden><span id="otaNewerText" style="flex:1"></span><a id="otaNotes" target="_blank" rel="noopener" style="color:inherit;font-size:12px;align-self:center">what's new</a><button class="primary" id="otaInstall" style="flex:0 0 auto">Install</button></div>
   <div id="otaInfo" style="font-size:12px;color:var(--dim);margin-top:6px"></div></div>
  <div class="card"><label>Events</label><ul id="events"></ul></div>
  <div class="card"><div id="info" style="font-size:13px;color:var(--dim)"></div><button id="wifiReset" style="width:100%;margin-top:8px">Forget network (restart into OAPA-setup)</button></div>
@@ -210,6 +211,7 @@ async function loadOta() {
   $('otaCurBox').hidden = !o.passwordSet;
   $('otaSetPw').textContent = o.passwordSet ? 'Change password' : 'Set password';
   $('otaUpload').disabled = !o.passwordSet;
+  $('otaInstall').disabled = !o.passwordSet;
   $('otaInfo').textContent = (o.passwordSet ? '' : 'Set a password to enable updates. ') + `running slot ${o.partition}` +
     (o.lockedMs ? ` · locked for ${(o.lockedMs / 1000).toFixed(0)} s` : '');
 }
@@ -217,21 +219,76 @@ $('otaSetPw').onclick = async () => {
   await api('/api/ota/password', {current: $('otaCur').value, password: $('otaNew').value});
   $('otaCur').value = ''; $('otaNew').value = ''; loadOta();
 };
-$('otaUpload').onclick = () => {
-  const file = $('otaFile').files[0];
-  if (!file) { $('msg').textContent = 'choose firmware.bin first'; return; }
-  const form = new FormData(); form.append('firmware', file, file.name);
+// Sends a firmware image to the board, the file chosen above or one fetched from the installer site.
+function uploadFirmware(image, name, button) {
+  const form = new FormData(); form.append('firmware', image, name);
   const x = new XMLHttpRequest();
   x.open('POST', '/api/ota');
   x.setRequestHeader('X-OTA-Password', $('otaPw').value);
   x.upload.onprogress = e => { if (e.lengthComputable) $('otaInfo').textContent = `uploading ${Math.round(100 * e.loaded / e.total)} %`; };
   x.onload = () => {
     $('otaInfo').textContent = `${x.status} ${x.responseText}`;
-    if (x.status === 200) setTimeout(() => location.reload(), 15000); else { $('otaUpload').disabled = false; loadOta(); }
+    if (x.status === 200) setTimeout(() => location.reload(), 15000); else { button.disabled = false; loadOta(); }
   };
-  x.onerror = () => { $('otaInfo').textContent = 'upload failed: connection lost'; $('otaUpload').disabled = false; };
-  $('otaUpload').disabled = true;  // a second tap must not start a second upload
+  x.onerror = () => { $('otaInfo').textContent = 'upload failed: connection lost'; button.disabled = false; };
+  button.disabled = true;  // a second tap must not start a second upload
   x.send(form);
+}
+$('otaUpload').onclick = () => {
+  const file = $('otaFile').files[0];
+  if (!file) { $('msg').textContent = 'choose firmware.bin first'; return; }
+  uploadFirmware(file, file.name, $('otaUpload'));
+};
+
+// A newer release, offered from the installer site (GitHub Pages), which serves the images
+// to any page. Needs internet on this browser's side; without it nothing is shown and the
+// file upload stays the way to update.
+let updateSite = 'https://michelebergo.github.io/oapa-firmware/', updateChecked = false, updateImage = null;
+try { updateSite = localStorage.getItem('oapaUpdateSite') || updateSite; } catch (e) {}
+function newerVersion(a, b) {  // true when version a is above b, both numeric like 1.3.4
+  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
+  if (pa.some(isNaN) || pb.some(isNaN)) return false;
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d > 0;
+  }
+  return false;
+}
+async function checkForUpdate(s) {
+  if (updateChecked || !s.fw || !s.board) return;
+  updateChecked = true;
+  try {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
+    const r = await fetch(updateSite + 'versions.json', {cache: 'no-store', signal: ctl.signal});
+    if (!r.ok) return;
+    const v = await r.json();
+    const path = v.boards && v.boards[s.board];
+    if (!path || !newerVersion(v.latest, s.fw)) return;
+    updateImage = {url: updateSite + path, version: String(v.latest)};
+    $('otaNewerText').textContent = `Firmware ${updateImage.version} is available (this board has ${s.fw}).`;
+    $('otaNotes').href = v.notes || updateSite;
+    $('otaNewer').hidden = false;
+    $('upd').textContent = `firmware ${updateImage.version} available`;
+    $('upd').hidden = false;
+  } catch (e) { /* offline or no site: nothing to offer */ }
+}
+$('upd').onclick = () => {
+  document.querySelector('nav button[data-tab="sys"]').click();
+  $('otaNewer').scrollIntoView({block: 'center'});
+};
+$('otaInstall').onclick = async () => {
+  if (!updateImage) return;
+  if (!$('otaPw').value) { $('otaInfo').textContent = 'enter the update password first'; return; }
+  $('otaInstall').disabled = true;
+  $('otaInfo').textContent = `downloading ${updateImage.version}...`;
+  try {
+    const r = await fetch(updateImage.url, {cache: 'no-store'});
+    if (!r.ok) throw new Error(`${r.status}`);
+    uploadFirmware(await r.blob(), `oapa-firmware-${updateImage.version}.bin`, $('otaInstall'));
+  } catch (e) {
+    $('otaInfo').textContent = `download failed (${e.message})`;
+    $('otaInstall').disabled = false;
+  }
 };
 $('wifiReset').onclick =() => { if (confirm('Forget the saved network and the update password, and restart into OAPA-setup?')) api('/api/wifi/reset', {}); };
 
@@ -256,6 +313,7 @@ async function pollFast() {
     $('steps').textContent = `steps X ${s.x} · Y ${s.y} · ${s.state}`;
     document.querySelectorAll('#move button').forEach(b => b.disabled = s.ninaActive);
     $('info').textContent = `firmware ${s.fw} · boot ${s.boots} (${s.reset}) · up ${s.uptime}s`;
+    checkForUpdate(s);
   } catch (e) { $('net').textContent = 'no connection to OAPA'; }
   setTimeout(pollFast, 400);
 }
