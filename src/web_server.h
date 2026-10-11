@@ -3,5 +3,6 @@
 #pragma once
 
 namespace webserver {
-void begin(const char *fwVersion);
+// board: which build this is (fysetc_e4 / esp32_stepdir), so the page fetches the right update.
+void begin(const char *fwVersion, const char *board);
 }

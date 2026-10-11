@@ -54,9 +54,17 @@
 #include <TMCStepper.h>
 #endif
 
+// Which build this is, reported in /api/status so the page offers the matching update
+// image from the installer site. The names are the PlatformIO envs.
+#if DRIVER_TMC2209
+#define FW_BOARD "fysetc_e4"
+#else
+#define FW_BOARD "esp32_stepdir"
+#endif
+
 // Reported in the status frame (V: field). Must stay purely numeric: the
 // plugin's status regex rejects any suffix.
-#define FW_VERSION "1.3.2"
+#define FW_VERSION "1.3.4"
 
 // Verbatim 1.2.3 protocol region - guarded by tools/check_verbatim.py.
 #include "oapa_protocol.inc"
@@ -216,6 +224,11 @@ String dispatchSerialLine(String line) {
       loopservice::ninaStatus(status, sizeof status);
       return String(status);
     }
+    case ninabridge::Kind::ProtocolQuery: {
+      char line[32];
+      ninabridge::formatProtocol(line, sizeof line);
+      return String(line);
+    }
     case ninabridge::Kind::MoveCapQuery: {
       char line[32];
       ninabridge::formatMoveCapLimit(line, sizeof line);
@@ -355,7 +368,7 @@ void setup() {
   device::begin();
   device::logEvent("boot", "firmware %s, boot %lu, reset %s", FW_VERSION, static_cast<unsigned long>(net::bootCount()),
                    net::resetReasonName());
-  webserver::begin(FW_VERSION);
+  webserver::begin(FW_VERSION, FW_BOARD);
   asiairclient::begin();
 }
 

@@ -16,6 +16,7 @@ struct StatusSnapshot {
   uint32_t bootCount = 0;
   const char *resetReason = "UNKNOWN";
   const char *fwVersion = "";
+  const char *board = "";
 };
 
 // Returns the body length, or -1 when buf is too small.

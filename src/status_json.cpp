@@ -8,10 +8,10 @@ int formatStatusJson(const StatusSnapshot &s, char *buf, size_t len) {
   int n = std::snprintf(buf, len,
       "{\"x\":%ld,\"y\":%ld,\"state\":\"%s\",\"ninaActive\":%s,"
       "\"network\":\"%s\",\"rssi\":%d,\"uptime\":%lu,\"boots\":%lu,"
-      "\"reset\":\"%s\",\"fw\":\"%s\"}",
+      "\"reset\":\"%s\",\"fw\":\"%s\",\"board\":\"%s\"}",
       s.x, s.y, state, s.ninaActive ? "true" : "false",
       s.stationConnected ? "station" : "setup", s.rssi,
       (unsigned long)s.uptimeS, (unsigned long)s.bootCount,
-      s.resetReason, s.fwVersion);
+      s.resetReason, s.fwVersion, s.board);
   return (n < 0 || (size_t)n >= len) ? -1 : n;
 }
