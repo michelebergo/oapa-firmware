@@ -260,3 +260,12 @@ TEST(NB_Event_IsOneParseableLine_WithTheNewestSequenceNumber) {
   ninabridge::formatEvent(nullptr, 7, line, sizeof line);
   CHECK_EQ_STR(line, "<G|seq:-|last:7|>");
 }
+
+TEST(NB_ProtocolQuery_ReportsTheProtocolVersion) {
+  // A host decides what a device can do from the protocol version, not from the
+  // firmware's own version number, so other devices can implement the protocol.
+  CHECK(ninabridge::parse("$P?").kind == Kind::ProtocolQuery);
+  char line[64];
+  ninabridge::formatProtocol(line, sizeof line);
+  CHECK_EQ_STR(line, "<P|protocol:1|>");
+}

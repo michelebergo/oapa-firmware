@@ -68,6 +68,8 @@ The board serves a phone page for use with ASIAIR: live error and chart, start/s
 
 ## Serial protocol
 
+The protocol on its own, for anyone implementing it on another device, is in [PROTOCOL.md](PROTOCOL.md). This section lists what this firmware answers.
+
 115200 baud, 8N1, newline-terminated commands, GRBL-flavoured. The same protocol is served over WiFi on **TCP port 2323** (one client at a time, the newest connection wins).
 
 | Command | Meaning |
@@ -94,6 +96,7 @@ Alignment commands (since 1.3.0), used by the TPPA plugin:
 | `$T=<arcmin>` | Alignment tolerance (the host's own, so both stop at the same error) |
 | `$M=<arcmin>` | Largest single correction, 1–180 arcminutes; until sent, the move cap saved on the board applies |
 | `$M?` | The largest move cap `$M=` accepts (since 1.3.2): `<M|max:180|>`. Firmware before 1.3.2 answers `ok`; its limit is 120 |
+| `$P?` | The protocol version (since 1.3.3): `<P|protocol:1|>`. The TPPA plugin aligns only with a device that answers it |
 | `$A=1` / `$A=0` | Start / stop an alignment |
 | `$C=1` / `$C=2` / `$C=0` | Calibrate, then align / calibrate only / stop a calibration |
 | `$L?` | Alignment status, one line: `<L|phase:...|outcome:...|moves:...|az:...|alt:...|plan:...|reason:...|>` |
@@ -110,7 +113,7 @@ Status frame:
 
 - `Idle` / `Run` / `Home` — machine state
 - `MPos` — X, Y, Z positions in steps (Z unused)
-- `V` — firmware version (since 1.1.0). The plugin reads this field and warns when the connected firmware is older than the version it expects.
+- `V` — firmware version (since 1.1.0), shown in the plugin's panel. What the device can do is decided by `$P?`, and the plugin warns about a device that does not answer it.
 
 ## Endstops
 
@@ -148,6 +151,7 @@ The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the hi
 
 | Version | Changes |
 |---|---|
+| 1.3.3 | `$P?` reports the protocol version; [PROTOCOL.md](PROTOCOL.md) describes the protocol on its own, for other devices |
 | 1.3.2 | Move cap up to 180' (page and `$M=`); the page asks before saving one above 120'; `$M?` reports the limit so a host reads it instead of assuming it |
 | 1.3.1 | `$G=`: the host copies the board's event log, which now records every leg of an alignment move, backlash included; `$L?` and `$K?` carry the whole reason instead of cutting it at 95 characters |
 | 1.3.0 | The board runs the alignment: error from TPPA over USB or WiFi (TCP 2323) or from ASIAIR; calibration of factors and backlash; corrections on both axes at once; largest single correction settable up to 120' (page, or `$M=` from the host); phone web page with arrow pad and motor direction; firmware update over WiFi. PlatformIO project; serial protocol of 1.2.3 unchanged |
