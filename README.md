@@ -132,6 +132,10 @@ Homing is bounded by `HOMING_MAX_TRAVEL` (200 000 steps): a switch that is enabl
 | Microsteps | 16 | set with `SX`/`SY` |
 | Step rate | 2000 steps/s | used when a jog carries no `F` value |
 
+## Installing
+
+The installer at **https://mblabtech.com/oapa-firmware/** writes the latest release over USB from Chrome or Edge on a computer: connect the board, press Install under your board and pick its port. Answer no when it asks to erase the device to keep the board's settings (WiFi, update password, calibration); answer yes coming from 1.2.x. A board on WiFi is updated from its own page afterwards: the System tab offers each new release and installs it over WiFi.
+
 ## Building and flashing
 
 This is a [PlatformIO](https://platformio.org/) project:
@@ -141,7 +145,7 @@ pio run -e fysetc_e4 -t upload        # FYSETC E4, TMC2209 drivers
 pio run -e esp32_stepdir -t upload    # any ESP32 with STEP/DIR drivers
 ```
 
-Once the board is on the network, later versions can be uploaded from the page (System tab) with the `.pio/build/<env>/firmware.bin` file. Host tests: `tests\host\run_tests.bat` (MSVC). `tools/check_verbatim.py` checks that the serial protocol region is unchanged from 1.2.3.
+Once the board is on the network, later versions can be uploaded from the page (System tab) with the `.pio/build/<env>/firmware.bin` file. Host tests: `tests\host\run_tests.bat` (MSVC). The installer site is built for a release by `tools/make_pages.py` and published on the `gh-pages` branch. `tools/check_verbatim.py` checks that the serial protocol region is unchanged from 1.2.3.
 
 The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the history of this repository.
 
