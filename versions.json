@@ -1,0 +1,8 @@
+{
+  "latest": "1.3.4",
+  "notes": "https://github.com/michelebergo/oapa-firmware/releases/tag/1.3.4",
+  "boards": {
+    "fysetc_e4": "firmware/1.3.4/fysetc_e4/firmware.bin",
+    "esp32_stepdir": "firmware/1.3.4/esp32_stepdir/firmware.bin"
+  }
+}
