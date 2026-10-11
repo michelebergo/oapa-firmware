@@ -151,6 +151,7 @@ The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the hi
 
 | Version | Changes |
 |---|---|
+| 1.3.5 | The page reads the newer release from raw.githubusercontent.com: in 1.3.4 the check went to an address that redirects, which the browser does not follow, so it never offered anything |
 | 1.3.4 | The page offers a newer release from the installer site and installs it over WiFi; `/api/status` reports the board type |
 | 1.3.3 | `$P?` reports the protocol version; [PROTOCOL.md](PROTOCOL.md) describes the protocol on its own, for other devices |
 | 1.3.2 | Move cap up to 180' (page and `$M=`); the page asks before saving one above 120'; `$M?` reports the limit so a host reads it instead of assuming it |

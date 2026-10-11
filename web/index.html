@@ -240,10 +240,12 @@ $('otaUpload').onclick = () => {
   uploadFirmware(file, file.name, $('otaUpload'));
 };
 
-// A newer release, offered from the installer site (GitHub Pages), which serves the images
-// to any page. Needs internet on this browser's side; without it nothing is shown and the
-// file upload stays the way to update.
-let updateSite = 'https://michelebergo.github.io/oapa-firmware/', updateChecked = false, updateImage = null;
+// A newer release, offered from the installer site's files. They are read from the gh-pages
+// branch on raw.githubusercontent.com, which serves them to any page and does not depend on
+// the domain the installer page is published under (github.io redirects there, and a browser
+// does not follow that redirect for another page). Needs internet on this browser's side;
+// without it nothing is shown and the file upload stays the way to update.
+let updateSite = 'https://raw.githubusercontent.com/michelebergo/oapa-firmware/gh-pages/', updateChecked = false, updateImage = null;
 try { updateSite = localStorage.getItem('oapaUpdateSite') || updateSite; } catch (e) {}
 function newerVersion(a, b) {  // true when version a is above b, both numeric like 1.3.4
   const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);

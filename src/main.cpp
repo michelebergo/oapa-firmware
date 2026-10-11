@@ -64,7 +64,7 @@
 
 // Reported in the status frame (V: field). Must stay purely numeric: the
 // plugin's status regex rejects any suffix.
-#define FW_VERSION "1.3.4"
+#define FW_VERSION "1.3.5"
 
 // Verbatim 1.2.3 protocol region - guarded by tools/check_verbatim.py.
 #include "oapa_protocol.inc"
