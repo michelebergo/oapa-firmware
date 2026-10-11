@@ -1,25 +1,25 @@
 {
   "name": "OAPA firmware",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "new_install_prompt_erase": true,
   "builds": [
     {
       "chipFamily": "ESP32",
       "parts": [
         {
-          "path": "firmware/1.3.4/esp32_stepdir/bootloader.bin",
+          "path": "firmware/1.3.5/esp32_stepdir/bootloader.bin",
           "offset": 4096
         },
         {
-          "path": "firmware/1.3.4/esp32_stepdir/partitions.bin",
+          "path": "firmware/1.3.5/esp32_stepdir/partitions.bin",
           "offset": 32768
         },
         {
-          "path": "firmware/1.3.4/esp32_stepdir/boot_app0.bin",
+          "path": "firmware/1.3.5/esp32_stepdir/boot_app0.bin",
           "offset": 57344
         },
         {
-          "path": "firmware/1.3.4/esp32_stepdir/firmware.bin",
+          "path": "firmware/1.3.5/esp32_stepdir/firmware.bin",
           "offset": 65536
         }
       ]
