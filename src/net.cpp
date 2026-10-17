@@ -15,7 +15,9 @@ namespace net {
 namespace {
 
 const char *const kSetupSsid = "OAPA-setup";
-const char *const kHostname = "oapa";
+// Built from the MAC at boot, e.g. "oapa-a1b2c3": several boards on one network
+// would fight over a single fixed name, and the loser is unreachable by name.
+char hostname_[12] = "oapa";
 constexpr uint32_t kTaskPeriodMs = 50;
 constexpr uint32_t kRestartDelayMs = 1500;
 
@@ -46,13 +48,13 @@ void enterStation(uint32_t now) {
   dns.stop();
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_STA);
-  if (!mdnsStarted && MDNS.begin(kHostname)) {
+  if (!mdnsStarted && MDNS.begin(hostname_)) {
     MDNS.addService("http", "tcp", 80);
     mdnsStarted = true;
   }
   mode = netrules::Mode::Station;
   modeSinceMs = now;
-  device::logEvent("wifi", "joined %s as %s", ssid.c_str(), WiFi.localIP().toString().c_str());
+  device::logEvent("wifi", "joined %s as %s (%s.local)", ssid.c_str(), WiFi.localIP().toString().c_str(), hostname_);
 }
 
 void apply(netrules::Action action, uint32_t now) {
@@ -95,6 +97,11 @@ void begin() {
 
   WiFi.persistent(false);  // credentials live in our own NVS namespace
   WiFi.setAutoReconnect(true);
+  // Before any mode change, so DHCP and mDNS both announce the same name.
+  uint8_t mac[6] = {0};
+  WiFi.macAddress(mac);
+  netrules::hostnameFromMac(mac, hostname_, sizeof hostname_);
+  WiFi.setHostname(hostname_);
   // The first WiFi mode is chosen here, synchronously, for two reasons:
   // - the web server opens its socket right after begin() returns; on a TCP/IP
   //   stack that was never started lwIP asserts (tcpip_api_call: Invalid mbox)
@@ -115,6 +122,8 @@ void begin() {
 }
 
 bool stationConnected() { return WiFi.status() == WL_CONNECTED; }
+
+const char *hostname() { return hostname_; }
 bool inSetupMode() { return mode == netrules::Mode::Setup; }
 int rssi() { return stationConnected() ? WiFi.RSSI() : 0; }
 uint32_t bootCount() { return boots; }

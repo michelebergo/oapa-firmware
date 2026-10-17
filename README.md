@@ -63,6 +63,7 @@ What moves to the hardware in that case:
 The board serves a phone page for use with ASIAIR: live error and chart, start/stop of the automatic alignment, an arrow pad for hand moves, calibration, settings, motor direction per axis, event log and firmware update.
 
 - **First start**: the board opens a WiFi network named `OAPA-setup`; join it and enter the network the ASIAIR uses (2.4 GHz only). The board then joins that network; its address shows in the router's device list and in the page's event log.
+- **Name on the network**: since 1.3.6 each board takes its own name from its MAC, `oapa-a1b2c3`, reachable as `http://oapa-a1b2c3.local`. The name is written at the bottom of the page, in the event log when the board joins, and in `/api/status`. Up to 1.3.5 every board answered to `oapa.local`, so two boards on one network fought over that name and one of them stayed unreachable.
 - **Motor direction**: each axis can be set to turn the other way (System tab), like swapping two wires of its motor. It is saved on the board and applies to every move.
 - **Firmware update over WiFi**: from the System tab, protected by a password set on the page. When the browser has internet, the page checks the installer site for a newer release and offers to install it: the page downloads the image and sends it to the board, which keeps its settings. Without internet the file upload is the way to update.
 
@@ -155,6 +156,7 @@ The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the hi
 
 | Version | Changes |
 |---|---|
+| 1.3.6 | Each board takes its network name from its MAC, `oapa-a1b2c3.local`, so several boards can share a network; the name is shown on the page and reported in `/api/status` |
 | 1.3.5 | The page reads the newer release from raw.githubusercontent.com: in 1.3.4 the check went to an address that redirects, which the browser does not follow, so it never offered anything |
 | 1.3.4 | The page offers a newer release from the installer site and installs it over WiFi; `/api/status` reports the board type |
 | 1.3.3 | `$P?` reports the protocol version; [PROTOCOL.md](PROTOCOL.md) describes the protocol on its own, for other devices |

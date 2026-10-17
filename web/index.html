@@ -314,7 +314,7 @@ async function pollFast() {
     $('posX').textContent = fmt(s.x / settings.factorX); $('posY').textContent = fmt(s.y / settings.factorY);
     $('steps').textContent = `steps X ${s.x} · Y ${s.y} · ${s.state}`;
     document.querySelectorAll('#move button').forEach(b => b.disabled = s.ninaActive);
-    $('info').textContent = `firmware ${s.fw} · boot ${s.boots} (${s.reset}) · up ${s.uptime}s`;
+    $('info').textContent = `${s.host}.local · firmware ${s.fw} · boot ${s.boots} (${s.reset}) · up ${s.uptime}s`;
     checkForUpdate(s);
   } catch (e) { $('net').textContent = 'no connection to OAPA'; }
   setTimeout(pollFast, 400);

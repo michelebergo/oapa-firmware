@@ -149,7 +149,8 @@ void begin(const char *fwVersion, const char *board) {
     s.resetReason = net::resetReasonName();
     s.fwVersion = firmwareVersion;
     s.board = firmwareBoard;
-    char body[256];
+    s.host = net::hostname();
+    char body[288];
     if (formatStatusJson(s, body, sizeof body) < 0) {
       req->send(500, "text/plain", "status too long");
       return;

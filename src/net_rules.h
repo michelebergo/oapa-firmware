@@ -25,4 +25,9 @@ Action decide(Mode mode, const Inputs &in);
 // SSID 1..32 bytes; password empty (open network) or 8..63 bytes (WPA2).
 bool validCredentials(const char *ssid, const char *password);
 
+// Host and mDNS name from the MAC: "oapa-a1b2c3", the last three bytes in lower
+// case hex. One fixed name would collide as soon as two boards share a network.
+// Needs 12 bytes; false when out is smaller, leaving it untouched.
+bool hostnameFromMac(const uint8_t mac[6], char *out, unsigned long outLen);
+
 }  // namespace netrules

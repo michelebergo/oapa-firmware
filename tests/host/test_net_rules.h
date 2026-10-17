@@ -42,6 +42,31 @@ TEST(Net_TimeoutsSurviveMillisWrap) {
   CHECK(netrules::decide(Mode::Connecting, in(true, false, 0x00008000u, 0xFFFFF000u)) == Action::EnterSetup);
 }
 
+TEST(Net_HostnameFromMac_IsLowercaseHexOfTheLastThreeBytes) {
+  const uint8_t mac[6] = {0x24, 0x6f, 0x28, 0xa1, 0xb2, 0xc3};
+  char name[12] = {0};
+  CHECK(netrules::hostnameFromMac(mac, name, sizeof name));
+  CHECK_EQ_STR(name, "oapa-a1b2c3");
+}
+
+TEST(Net_HostnameFromMac_PadsZeroesAndSeparatesTwoBoards) {
+  const uint8_t first[6] = {0x24, 0x6f, 0x28, 0x00, 0x0f, 0x05};
+  const uint8_t second[6] = {0x24, 0x6f, 0x28, 0x00, 0x0f, 0x06};
+  char a[12] = {0}, b[12] = {0};
+  CHECK(netrules::hostnameFromMac(first, a, sizeof a));
+  CHECK(netrules::hostnameFromMac(second, b, sizeof b));
+  CHECK_EQ_STR(a, "oapa-000f05");
+  CHECK(std::strcmp(a, b) != 0);
+}
+
+TEST(Net_HostnameFromMac_RefusesASmallBuffer) {
+  const uint8_t mac[6] = {0x24, 0x6f, 0x28, 0xa1, 0xb2, 0xc3};
+  char name[11] = "untouched";
+  CHECK(!netrules::hostnameFromMac(mac, name, sizeof name));
+  CHECK_EQ_STR(name, "untouched");
+  CHECK(!netrules::hostnameFromMac(nullptr, name, sizeof name));
+}
+
 TEST(Net_CredentialRules_FollowWpa2) {
   CHECK(netrules::validCredentials("ASIAIR_1234", "12345678"));
   CHECK(netrules::validCredentials("OpenNet", ""));

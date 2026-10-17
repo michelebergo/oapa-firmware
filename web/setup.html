@@ -21,13 +21,18 @@
 </form>
 <p id="msg"></p>
 <script>
+// Each board answers to its own name, built from its MAC, so several of them
+// can share one network: the page tells the user which one this board took.
+let host = 'oapa';
+fetch('/api/status').then(r => r.json()).then(s => { if (s.host) host = s.host; }).catch(() => {});
+
 document.getElementById('f').addEventListener('submit', async e => {
   e.preventDefault();
   const msg = document.getElementById('msg');
   const body = new URLSearchParams(new FormData(e.target));
   const r = await fetch('/api/wifi', {method: 'POST', body});
   msg.textContent = r.ok
-    ? 'Saved. OAPA restarts and joins "' + body.get('ssid') + '". Connect your phone to that network and open http://oapa.local'
+    ? 'Saved. OAPA restarts and joins "' + body.get('ssid') + '". Connect your phone to that network and open http://' + host + '.local'
     : await r.text();
 });
 </script>

@@ -17,6 +17,7 @@ struct StatusSnapshot {
   const char *resetReason = "UNKNOWN";
   const char *fwVersion = "";
   const char *board = "";
+  const char *host = "";  // mDNS name without .local, e.g. "oapa-a1b2c3"
 };
 
 // Returns the body length, or -1 when buf is too small.
