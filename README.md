@@ -146,7 +146,19 @@ pio run -e fysetc_e4 -t upload        # FYSETC E4, TMC2209 drivers
 pio run -e esp32_stepdir -t upload    # any ESP32 with STEP/DIR drivers
 ```
 
-Once the board is on the network, later versions can be uploaded from the page (System tab) with the `.pio/build/<env>/firmware.bin` file. Host tests: `tests\host\run_tests.bat` (MSVC). The installer site is built for a release by `tools/make_pages.py` and published on the `gh-pages` branch. `tools/check_verbatim.py` checks that the serial protocol region is unchanged from 1.2.3.
+Once the board is on the network, later versions can be uploaded from the page (System tab) with the `.pio/build/<env>/firmware.bin` file. Host tests: `tests\host\run_tests.bat` (MSVC). `tools/check_verbatim.py` checks that the serial protocol region is unchanged from 1.2.3.
+
+Releasing a version: build both envs, tag it, publish the release with `oapa-firmware-<version>-<env>.bin` for each env, then rebuild the installer site. The site lives on the `gh-pages` branch, checked out as a worktree next to this repository in `../oapa-firmware-pages`:
+
+```bash
+git worktree add ../oapa-firmware-pages gh-pages   # first time only
+rm -rf ../oapa-firmware-pages/firmware/<previous version>
+python tools/make_pages.py <version> --apps <dir with the release images> --out ../oapa-firmware-pages
+git -C ../oapa-firmware-pages add -A && git -C ../oapa-firmware-pages commit -m "Installer site for firmware <version>"
+git -C ../oapa-firmware-pages push
+```
+
+The site keeps only the latest version. The board's own update check reads `versions.json` from the `gh-pages` branch on raw.githubusercontent.com, so it sees a new release as soon as that branch is pushed, before GitHub Pages has rebuilt the site.
 
 The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the history of this repository.
 
