@@ -26,5 +26,10 @@ void ninaStart();
 void ninaStop();
 void ninaUserMotion();  // a jog or STOP from N.I.N.A. ends a run N.I.N.A. is feeding
 size_t ninaStatus(char *out, size_t len);
+// $R=: a relative move in arcminutes on both axes with the board's factors and backlash
+// legs. Returns nullptr when the move starts, else why it was refused (the reply is
+// "error"; the reason goes to the event log). Ends a run N.I.N.A. is feeding, like a jog.
+const char *ninaRelativeMove(double azArcmin, double altArcmin, uint32_t nowMs);
+size_t ninaRelativeStatus(char *out, size_t len);
 
 }  // namespace loopservice

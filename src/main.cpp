@@ -64,7 +64,7 @@
 
 // Reported in the status frame (V: field). Must stay purely numeric: the
 // plugin's status regex rejects any suffix.
-#define FW_VERSION "1.3.6"
+#define FW_VERSION "1.3.7"
 
 // Verbatim 1.2.3 protocol region - guarded by tools/check_verbatim.py.
 #include "oapa_protocol.inc"
@@ -227,6 +227,21 @@ String dispatchSerialLine(String line) {
     case ninabridge::Kind::ProtocolQuery: {
       char line[32];
       ninabridge::formatProtocol(line, sizeof line);
+      return String(line);
+    }
+    case ninabridge::Kind::RelativeMove: {
+      const char *refused = loopservice::ninaRelativeMove(command.a, command.b, millis());
+      if (refused != nullptr) device::logEvent("move", "relative move refused: %s", refused);
+      return refused == nullptr ? "ok" : "error";
+    }
+    case ninabridge::Kind::RelativeQuery: {
+      char line[200];
+      loopservice::ninaRelativeStatus(line, sizeof line);
+      return String(line);
+    }
+    case ninabridge::Kind::IdentityQuery: {
+      char line[96];
+      ninabridge::formatIdentity(WiFi.macAddress().c_str(), FW_BOARD, FW_VERSION, line, sizeof line);
       return String(line);
     }
     case ninabridge::Kind::MoveCapQuery: {
