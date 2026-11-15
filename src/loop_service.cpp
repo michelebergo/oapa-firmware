@@ -284,7 +284,7 @@ size_t ninaCalibrationStatus(char *out, size_t len) {
   s.yPlayNegative = y.playEnteringNegative;
   s.xMode = modeLetter(recommendedMode(x));
   s.yMode = modeLetter(recommendedMode(y));
-  s.reason = calibration.reason().c_str();
+  if (std::strcmp(s.state, "pushed") != 0) s.reason = calibration.reason().c_str();
   return ninabridge::formatCalibration(s, out, len);
 }
 
