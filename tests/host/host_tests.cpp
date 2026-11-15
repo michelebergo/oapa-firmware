@@ -69,6 +69,7 @@ void resetFirmwareState() {
 #include "test_ota_gate.h"
 #include "test_backlash_planner.h"
 #include "test_nina_bridge.h"
+#include "test_relative_move.h"
 #include "test_loop_backlash.h"
 
 int main() { return ttRunAll(); }

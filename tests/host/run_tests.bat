@@ -14,5 +14,6 @@ cl /nologo /std:c++17 /EHsc /W3 /utf-8 /Fe:build\host_tests.exe /Fo:build\ ^
   ..\..\src\asiair\asiair_parser.cpp ..\..\src\asiair\pa_tracker.cpp ^
   ..\..\src\loop\calibration.cpp ..\..\src\loop\calibration_status.cpp ^
   ..\..\src\asiair\asiair_status.cpp ..\..\src\ota_rules.cpp ^
-  ..\..\src\motion\backlash_planner.cpp ..\..\src\nina_bridge.cpp || exit /b 1
+  ..\..\src\motion\backlash_planner.cpp ..\..\src\nina_bridge.cpp ^
+  ..\..\src\loop\relative_move.cpp || exit /b 1
 build\host_tests.exe
