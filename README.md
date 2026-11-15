@@ -96,7 +96,7 @@ Alignment commands (since 1.3.0), used by the TPPA plugin:
 | `$B=<axis>,<mode>,<plus>,<minus>` | Backlash of one axis: mode `O`ff, `S`oft, `F`ull or `U`nidirectional; arcminutes entering the positive / negative direction |
 | `$T=<arcmin>` | Alignment tolerance (the host's own, so both stop at the same error) |
 | `$M=<arcmin>` | Largest single correction, 1–180 arcminutes; until sent, the move cap saved on the board applies |
-| `$M?` | The largest move cap `$M=` accepts (since 1.3.2): `<M|max:180|>`. Firmware before 1.3.2 answers `ok`; its limit is 120 |
+| `$M?` | The largest move cap `$M=` accepts (since 1.3.2) and, since 1.3.7, the cap set on the page that bounds a `$R=` move: `<M|max:180|cap:30|>`. Firmware before 1.3.2 answers `ok`; its limit is 120 |
 | `$P?` | The protocol version (since 1.3.3): `<P|protocol:1|>`. The TPPA plugin aligns only with a device that answers it |
 | `$A=1` / `$A=0` | Start / stop an alignment |
 | `$C=1` / `$C=2` / `$C=0` | Calibrate, then align / calibrate only / stop a calibration |
@@ -173,7 +173,7 @@ The single-file `oapa.ino` for the Arduino IDE ends at 1.2.3; it stays in the hi
 | 1.3.4 | The page offers a newer release from the installer site and installs it over WiFi; `/api/status` reports the board type |
 | 1.3.3 | `$P?` reports the protocol version; [PROTOCOL.md](PROTOCOL.md) describes the protocol on its own, for other devices |
 | 1.3.2 | Move cap up to 180' (page and `$M=`); the page asks before saving one above 120'; `$M?` reports the limit so a host reads it instead of assuming it |
-| 1.3.7 | `$R=`/`$R?`: a relative move in arcminutes on both axes, with the board's factors and backlash legs, for the Alpaca driver and any host that does not run the board's own loop; `$I?` identity; `$K?` reports factors pushed with `$F=`. Direction rule: AZ + turns the base clockwise seen from above, ALT + raises the polar axis |
+| 1.3.7 | `$R=`/`$R?`: a relative move in arcminutes on both axes, with the board's factors and backlash legs, bounded by the page's move cap, for the Alpaca driver and any host that does not run the board's own loop; `$M?` reports that cap; `$I?` identity; `$K?` reports factors pushed with `$F=`. Direction rule: AZ + turns the base clockwise seen from above, ALT + raises the polar axis |
 | 1.3.1 | `$G=`: the host copies the board's event log, which now records every leg of an alignment move, backlash included; `$L?` and `$K?` carry the whole reason instead of cutting it at 95 characters |
 | 1.3.0 | The board runs the alignment: error from TPPA over USB or WiFi (TCP 2323) or from ASIAIR; calibration of factors and backlash; corrections on both axes at once; largest single correction settable up to 120' (page, or `$M=` from the host); phone web page with arrow pad and motor direction; firmware update over WiFi. PlatformIO project; serial protocol of 1.2.3 unchanged |
 | 1.2.3 | `DRIVER_TMC2209` build switch: plain STEP/DIR drivers (A4988, DRV8825, LV8729, ...) without the TMCStepper library; protocol unchanged |

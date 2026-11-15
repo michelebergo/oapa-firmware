@@ -79,7 +79,6 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("address")
     p.add_argument("--factors", default="59.61,59.44", help="steps per arcminute az,alt to push with $F=")
-    p.add_argument("--cap", type=float, default=10, help="move cap to push with $M=")
     args = p.parse_args()
     fx, fy = (float(v) for v in args.factors.split(","))
     b = Board(args.address)
@@ -92,7 +91,10 @@ def main():
     b.command(f"$F={fx},{fy}")
     k = b.frame("$K?")
     expect("$K? carries the pushed factors", k.get("x", "-") != "-" and k.get("y", "-") != "-", str(k))
-    b.command(f"$M={args.cap:.0f}")
+    m = b.frame("$M?")
+    expect("$M? carries the board's own cap", "cap" in m, str(m))
+    cap = float(m.get("cap", 30))
+    b.command("$M=5")  # a pushed correction cap must not bound $R=
 
     state, x0, y0 = b.steps()
     r = b.command("$R=1,0")[0]
@@ -112,8 +114,12 @@ def main():
     expect("+1.5' alt moved 1.5fy steps", abs((y2 - y1) - round(1.5 * fy)) <= 1, f"dy={y2 - y1:.0f} want {round(1.5 * fy)}")
     expect("$R? done with both amounts", done.get("state") == "done" and abs(float(done.get("alt", "0")) - 1.5) < 0.02, str(done))
 
-    r = b.command(f"$R={args.cap + 1:.0f},0")[0]
-    expect("a move beyond the cap is refused", r == "error", r)
+    r = b.command(f"$R={cap + 1:.0f},0")[0]
+    expect("a move beyond the board's own cap is refused", r == "error", r)
+    if cap > 6:
+        r = b.command("$R=6,0")[0]
+        expect("a pushed $M= does not bound $R=", r == "ok", r)
+        wait_done(b)
     r = b.command("$R=0,0")[0]
     expect("a zero move is accepted and done at once", r == "ok" and wait_done(b, 3).get("state") == "done", r)
 

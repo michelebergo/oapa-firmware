@@ -324,7 +324,9 @@ const char *ninaRelativeMove(double azArcmin, double altArcmin, uint32_t nowMs) 
   if (!ninaFactorsPushed || ninaFactorX == 0 || ninaFactorY == 0) return "not calibrated";
   if (calibration.running()) return "calibrating";
   if (relative.moving() || lastRunningX || lastRunningY) return "an axis is moving";
-  double cap = ninaMoveCapArcmin > 0 ? ninaMoveCapArcmin : device::loopConfig().userCapArcmin;
+  // The board's own cap bounds a relative move; $M? reports it so the host sizes its moves to
+  // it. A cap a host pushed with $M= is the correction cap of a run it feeds, not this bound.
+  double cap = device::loopConfig().userCapArcmin;
   if (std::fabs(azArcmin) > cap || std::fabs(altArcmin) > cap) return "beyond the move cap";
   if (ninaFeeding()) {
     if (ninaDriving()) alignment.stopByUser();

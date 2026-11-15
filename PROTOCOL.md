@@ -82,7 +82,7 @@ Found by asking; a plain `ok` means not implemented.
 
 | Command | Reply | Meaning |
 |---|---|---|
-| `$M?` | `<M|max:180|>` | The largest move cap `$M=` accepts. Without it the host assumes 120. |
+| `$M?` | `<M|max:180|cap:30|>` | `max`: the largest move cap `$M=` accepts (without `$M?` the host assumes 120). `cap` (since 1.3.7): the cap set on the board's page, the bound of a `$R=` move. |
 | `$C=1` / `$C=2` / `$C=0` | `ok` | Calibrate on the readings that follow, then align / calibrate only (the readings are field displacements the host measures itself, in the same arcminute units) / stop a calibration. |
 | `$K?` | `<K|state:...|x:<factor>,<sign>|y:...|xplay:<+>,<->,<mode>|yplay:...|reason:...|>` | Calibration state (`idle`, `preloading`, `baseline`, `probing`, `measuring`, `restoring`, `done`, `failed`, `stopped`, `pushed`) and result; `-` for an axis without one. The host stores a `done` result as the user's factors and backlash. Since 1.3.7, factors the host pushed with `$F=` appear here too, with sign `0` (not measured), for every axis the device has not measured itself; `pushed` is the state when the device never calibrated. A host that wants to know whether the device can move in arcminutes looks at whether both axes have a factor, not at the state. |
 | `$G=<seq>` | `<G|seq:N|last:M|ms:T|code:...|text:...|>` or `<G|seq:-|last:M|>` | The device's event log, one event per command: the oldest event after `seq`, and the newest number. `last` below the `seq` asked for means the device restarted. The host copies the events into the N.I.N.A. log. |

@@ -172,13 +172,17 @@ TEST(NB_MoveCap_ParsesArcmin_WithinBounds) {
   }
 }
 
-TEST(NB_MoveCapQuery_ReportsTheLargestMoveCapTheBoardAccepts) {
+TEST(NB_MoveCapQuery_ReportsTheLargestMoveCapTheBoardAcceptsAndItsOwnCap) {
   // The host reads the limit instead of assuming it, so raising it needs no host change.
   // Firmware before 1.3.2 does not know $M? and acknowledges it with "ok": the host takes 120.
+  // Since 1.3.7 the frame also carries the cap the board enforces on $R= (its page setting),
+  // so a Tier 1 host sizes its moves to what the board will accept, not to the $M= limit.
   CHECK(ninabridge::parse("$M?").kind == Kind::MoveCapQuery);
   char line[64];
-  ninabridge::formatMoveCapLimit(line, sizeof line);
-  CHECK_EQ_STR(line, "<M|max:180|>");
+  ninabridge::formatMoveCapLimit(30, line, sizeof line);
+  CHECK_EQ_STR(line, "<M|max:180|cap:30|>");
+  ninabridge::formatMoveCapLimit(12.5, line, sizeof line);
+  CHECK_EQ_STR(line, "<M|max:180|cap:12.5|>");
 }
 
 TEST(NB_Calibration_StartStopAndQuery) {

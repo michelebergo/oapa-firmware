@@ -245,8 +245,8 @@ String dispatchSerialLine(String line) {
       return String(line);
     }
     case ninabridge::Kind::MoveCapQuery: {
-      char line[32];
-      ninabridge::formatMoveCapLimit(line, sizeof line);
+      char line[48];
+      ninabridge::formatMoveCapLimit(device::loopConfig().userCapArcmin, line, sizeof line);
       return String(line);
     }
     case ninabridge::Kind::EventQuery: {

@@ -17,7 +17,8 @@
 //                   displacements the plugin measures itself, not a polar error -> ok
 //   $K?             calibration state and result, one line       -> <K|...|>
 //   $L?             loop status, one line                        -> <L|...|>
-//   $M?             the largest move cap $M= accepts             -> <M|max:180|>
+//   $M?             the largest move cap $M= accepts, and the cap the board
+//                   enforces on $R= (its page setting)          -> <M|max:180|cap:30|>
 //   $P?             the protocol version (PROTOCOL.md)           -> <P|protocol:1|>
 //   $R=<az>,<alt>   relative move in arcminutes on both axes, carried out with the
 //                   board's factors and backlash legs; +az turns the base clockwise
@@ -105,7 +106,8 @@ struct CalibrationStatus {
 size_t formatCalibration(const CalibrationStatus &status, char *out, size_t len);
 
 // What $M? reports: the largest move cap $M= accepts (move_cap.h).
-size_t formatMoveCapLimit(char *out, size_t len);
+// ownCapArcmin: the move cap set on the board's page, the bound of a $R= move.
+size_t formatMoveCapLimit(double ownCapArcmin, char *out, size_t len);
 
 // What $R? reports: the state of the last relative move (idle, moving, done, failed),
 // the arcminutes actually commanded per axis (what rounds to whole steps), and why
