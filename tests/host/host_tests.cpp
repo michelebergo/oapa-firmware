@@ -4,7 +4,7 @@
 #include "stubs/AccelStepper.h"
 #include "stubs/TMCStepper.h"
 
-#define FW_VERSION "1.3.6"
+#define FW_VERSION "1.3.7"
 #define DRIVER_TMC2209 1  // the E4 build; main.cpp sets it for the firmware
 #include "../../src/oapa_protocol.inc"
 #include "../../src/web_bridge.h"
@@ -69,6 +69,7 @@ void resetFirmwareState() {
 #include "test_ota_gate.h"
 #include "test_backlash_planner.h"
 #include "test_nina_bridge.h"
+#include "test_relative_move.h"
 #include "test_loop_backlash.h"
 
 int main() { return ttRunAll(); }

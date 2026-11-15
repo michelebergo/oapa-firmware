@@ -47,6 +47,18 @@ Command parse(const char *line) {
     c.kind = Kind::CalibrationQuery;
     return c;
   }
+  if (letter == 'R' && std::strcmp(rest, "?") == 0) {
+    c.kind = Kind::RelativeQuery;
+    return c;
+  }
+  if (letter == 'I' && std::strcmp(rest, "?") == 0) {
+    c.kind = Kind::IdentityQuery;
+    return c;
+  }
+  if (letter == 'R' && *rest == '=') {
+    c.kind = parsePair(rest + 1, c.a, c.b) ? Kind::RelativeMove : Kind::Invalid;
+    return c;
+  }
   if (letter == 'G' && *rest == '=') {
     // A sequence number: digits only, within 32 bits.
     const char *digits = rest + 1;
@@ -181,9 +193,30 @@ size_t formatEvent(const EventLog::Item *item, uint32_t lastSeq, char *out, size
   return static_cast<size_t>(n) < len ? static_cast<size_t>(n) : len - 1;
 }
 
-size_t formatMoveCapLimit(char *out, size_t len) {
+size_t formatMoveCapLimit(double ownCapArcmin, char *out, size_t len) {
   if (out == nullptr || len == 0) return 0;
-  int n = std::snprintf(out, len, "<M|max:%.0f|>", kMaxMoveCapArcmin);
+  int n = std::snprintf(out, len, "<M|max:%.0f|cap:%g|>", kMaxMoveCapArcmin, ownCapArcmin);
+  if (n < 0) return 0;
+  return static_cast<size_t>(n) < len ? static_cast<size_t>(n) : len - 1;
+}
+
+size_t formatRelative(const RelativeStatus &status, char *out, size_t len) {
+  if (out == nullptr || len == 0) return 0;
+  char reason[kReasonMax];
+  std::snprintf(reason, sizeof reason, "%s", status.reason ? status.reason : "");
+  for (char *p = reason; *p; ++p) {
+    if (*p == '|') *p = '/';
+  }
+  int n = std::snprintf(out, len, "<R|state:%s|az:%.2f|alt:%.2f|reason:%s|>", status.state, status.azArcmin,
+                        status.altArcmin, reason);
+  if (n < 0) return 0;
+  return static_cast<size_t>(n) < len ? static_cast<size_t>(n) : len - 1;
+}
+
+size_t formatIdentity(const char *mac, const char *board, const char *firmware, char *out, size_t len) {
+  if (out == nullptr || len == 0) return 0;
+  int n = std::snprintf(out, len, "<I|mac:%s|board:%s|fw:%s|>", mac ? mac : "", board ? board : "",
+                        firmware ? firmware : "");
   if (n < 0) return 0;
   return static_cast<size_t>(n) < len ? static_cast<size_t>(n) : len - 1;
 }

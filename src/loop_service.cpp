@@ -1,5 +1,7 @@
 #include "loop_service.h"
 
+#include "loop/relative_move.h"
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -57,6 +59,9 @@ bool ninaCalibrateRequested = false;
 bool ninaAlignAfterCalibration = true;  // false: $C=2, the readings are not a polar error
 bool ninaCalibrating = false;      // the current (or last) calibration is fed by N.I.N.A.
 bool ninaCalibrationHandled = true;
+paloop::RelativeMove relative;  // the last $R= move
+bool lastRunningX = false;
+bool lastRunningY = false;
 long lastStepsX = 0;
 long lastStepsY = 0;
 bool stepsSeen = false;
@@ -253,6 +258,24 @@ size_t ninaCalibrationStatus(char *out, size_t len) {
   s.yValid = y.valid;
   s.yFactor = y.stepsPerArcmin;
   s.ySign = y.sign;
+  // Factors the host pushed with $F= count as the board's factors (they drive $R= and the
+  // loop): report them, sign 0 (not measured), wherever the board has no result of its own.
+  if (ninaFactorsPushed && !calibration.running()) {
+    if (!x.valid && ninaFactorX != 0) {
+      s.xValid = true;
+      s.xFactor = std::fabs(ninaFactorX);
+      s.xSign = 0;
+    }
+    if (!y.valid && ninaFactorY != 0) {
+      s.yValid = true;
+      s.yFactor = std::fabs(ninaFactorY);
+      s.ySign = 0;
+    }
+    if (calibration.state() == paloop::CalState::Idle) {
+      s.state = "pushed";
+      s.reason = "factors from the host";
+    }
+  }
   s.xPlayValid = x.backlashValid;
   s.xPlayPositive = x.playEnteringPositive;
   s.xPlayNegative = x.playEnteringNegative;
@@ -261,7 +284,7 @@ size_t ninaCalibrationStatus(char *out, size_t len) {
   s.yPlayNegative = y.playEnteringNegative;
   s.xMode = modeLetter(recommendedMode(x));
   s.yMode = modeLetter(recommendedMode(y));
-  s.reason = calibration.reason().c_str();
+  if (std::strcmp(s.state, "pushed") != 0) s.reason = calibration.reason().c_str();
   return ninabridge::formatCalibration(s, out, len);
 }
 
@@ -290,10 +313,44 @@ void ninaStop() {
 }
 
 void ninaUserMotion() {
+  relative.stopByUser();  // a jog or a stop from the host ends the $R= move too
   if (!ninaFeeding()) return;
   if (ninaDriving()) alignment.stopByUser();
   if (ninaCalibratingNow()) calibration.stopByUser();
   device::logEvent("loop", "the PC moved the axes: run stopped");
+}
+
+const char *ninaRelativeMove(double azArcmin, double altArcmin, uint32_t nowMs) {
+  if (!ninaFactorsPushed || ninaFactorX == 0 || ninaFactorY == 0) return "not calibrated";
+  if (calibration.running()) return "calibrating";
+  if (relative.moving() || lastRunningX || lastRunningY) return "an axis is moving";
+  // The board's own cap bounds a relative move; $M? reports it so the host sizes its moves to
+  // it. A cap a host pushed with $M= is the correction cap of a run it feeds, not this bound.
+  double cap = device::loopConfig().userCapArcmin;
+  if (std::fabs(azArcmin) > cap || std::fabs(altArcmin) > cap) return "beyond the move cap";
+  if (ninaFeeding()) {
+    if (ninaDriving()) alignment.stopByUser();
+    device::logEvent("loop", "the PC asked for a move: run stopped");
+  }
+  paloop::RelativeSettings s;
+  s.factorX = std::fabs(ninaFactorX);
+  s.factorY = std::fabs(ninaFactorY);
+  s.feed = device::loopConfig().feed;
+  s.backlashX = ninaBacklashX;
+  s.backlashY = ninaBacklashY;
+  relative.start(s, azArcmin, altArcmin, nowMs, alignment.engagement(paloop::AxisId::X),
+                 alignment.engagement(paloop::AxisId::Y));
+  device::logEvent("move", "relative %+.2f' / %+.2f' (PC)", azArcmin, altArcmin);
+  return nullptr;
+}
+
+size_t ninaRelativeStatus(char *out, size_t len) {
+  ninabridge::RelativeStatus s;
+  s.state = paloop::relStateName(relative.state());
+  s.azArcmin = relative.commandedAz();
+  s.altArcmin = relative.commandedAlt();
+  s.reason = relative.reason();
+  return ninabridge::formatRelative(s, out, len);
 }
 
 size_t ninaStatus(char *out, size_t len) {
@@ -482,8 +539,12 @@ const char *tick(uint32_t nowMs, bool ninaActive, long stepsX, long stepsY, bool
   in.axisIdle[1] = !runningY;
   // N.I.N.A. is the source of a run it feeds, not a competitor for the motors.
   in.ninaActive = ninaFeeding() ? false : ninaActive;
+  lastRunningX = runningX;
+  lastRunningY = runningY;
   paloop::LoopAction calibrationAction = calibration.tick(in);
+  paloop::LoopAction relativeAction = relative.tick(in);
   paloop::LoopAction action = alignment.tick(in);
+  if (relativeAction.kind != paloop::ActionKind::None) action = relativeAction;
   if (calibrationAction.kind != paloop::ActionKind::None) action = calibrationAction;
   if (ninaCalibrating && !ninaCalibrationHandled && !calibration.running()) {
     ninaCalibrationHandled = true;

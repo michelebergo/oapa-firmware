@@ -17,8 +17,14 @@
 //                   displacements the plugin measures itself, not a polar error -> ok
 //   $K?             calibration state and result, one line       -> <K|...|>
 //   $L?             loop status, one line                        -> <L|...|>
-//   $M?             the largest move cap $M= accepts             -> <M|max:180|>
+//   $M?             the largest move cap $M= accepts, and the cap the board
+//                   enforces on $R= (its page setting)          -> <M|max:180|cap:30|>
 //   $P?             the protocol version (PROTOCOL.md)           -> <P|protocol:1|>
+//   $R=<az>,<alt>   relative move in arcminutes on both axes, carried out with the
+//                   board's factors and backlash legs; +az turns the base clockwise
+//                   seen from above, +alt raises the polar axis (PROTOCOL.md) -> ok | error
+//   $R?             state of the last $R=: <R|state:idle|az:..|alt:..|reason:..|>
+//   $I?             the board's identity: <I|mac:..|board:..|fw:..|>
 //   $G=<seq>        the board's event log, one event per command: the oldest
 //                   event after seq, and the newest sequence number
 //                   -> <G|seq:5|last:7|ms:123456|code:move|text:...|>, or
@@ -35,12 +41,12 @@
 
 namespace ninabridge {
 
-enum class Kind { None, Reading, Factors, Start, Stop, StatusQuery, Backlash, Tolerance, MoveCap, CalibrateStart, CalibrateOnly, CalibrateStop, CalibrationQuery, EventQuery, MoveCapQuery, ProtocolQuery, Invalid };
+enum class Kind { None, Reading, Factors, Start, Stop, StatusQuery, Backlash, Tolerance, MoveCap, CalibrateStart, CalibrateOnly, CalibrateStop, CalibrationQuery, EventQuery, MoveCapQuery, ProtocolQuery, RelativeMove, RelativeQuery, IdentityQuery, Invalid };
 
 struct Command {
   Kind kind = Kind::None;
-  double a = 0;  // az arcmin, or X factor
-  double b = 0;  // alt arcmin, or Y factor
+  double a = 0;  // az arcmin (Reading, RelativeMove), or X factor
+  double b = 0;  // alt arcmin (Reading, RelativeMove), or Y factor
   char axis = 0;  // Backlash: 'X' or 'Y'
   char mode = 0;  // Backlash: 'O', 'S', 'F' or 'U'
   uint32_t seq = 0;  // EventQuery: the event after this sequence number
@@ -100,7 +106,22 @@ struct CalibrationStatus {
 size_t formatCalibration(const CalibrationStatus &status, char *out, size_t len);
 
 // What $M? reports: the largest move cap $M= accepts (move_cap.h).
-size_t formatMoveCapLimit(char *out, size_t len);
+// ownCapArcmin: the move cap set on the board's page, the bound of a $R= move.
+size_t formatMoveCapLimit(double ownCapArcmin, char *out, size_t len);
+
+// What $R? reports: the state of the last relative move (idle, moving, done, failed),
+// the arcminutes actually commanded per axis (what rounds to whole steps), and why
+// a move failed: <R|state:failed|az:-1.25|alt:0.50|reason:timeout ALT (Y)|>
+struct RelativeStatus {
+  const char *state = "idle";
+  double azArcmin = 0;
+  double altArcmin = 0;
+  const char *reason = "";
+};
+size_t formatRelative(const RelativeStatus &status, char *out, size_t len);
+
+// What $I? reports: <I|mac:A1:B2:C3:D4:E5:F6|board:fysetc_e4|fw:1.3.7|>
+size_t formatIdentity(const char *mac, const char *board, const char *firmware, char *out, size_t len);
 
 // The version of the protocol in PROTOCOL.md that this firmware implements. A host
 // decides what a device can do from it, not from the firmware version, so any device

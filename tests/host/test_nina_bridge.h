@@ -172,13 +172,17 @@ TEST(NB_MoveCap_ParsesArcmin_WithinBounds) {
   }
 }
 
-TEST(NB_MoveCapQuery_ReportsTheLargestMoveCapTheBoardAccepts) {
+TEST(NB_MoveCapQuery_ReportsTheLargestMoveCapTheBoardAcceptsAndItsOwnCap) {
   // The host reads the limit instead of assuming it, so raising it needs no host change.
   // Firmware before 1.3.2 does not know $M? and acknowledges it with "ok": the host takes 120.
+  // Since 1.3.7 the frame also carries the cap the board enforces on $R= (its page setting),
+  // so a Tier 1 host sizes its moves to what the board will accept, not to the $M= limit.
   CHECK(ninabridge::parse("$M?").kind == Kind::MoveCapQuery);
   char line[64];
-  ninabridge::formatMoveCapLimit(line, sizeof line);
-  CHECK_EQ_STR(line, "<M|max:180|>");
+  ninabridge::formatMoveCapLimit(30, line, sizeof line);
+  CHECK_EQ_STR(line, "<M|max:180|cap:30|>");
+  ninabridge::formatMoveCapLimit(12.5, line, sizeof line);
+  CHECK_EQ_STR(line, "<M|max:180|cap:12.5|>");
 }
 
 TEST(NB_Calibration_StartStopAndQuery) {
@@ -268,4 +272,35 @@ TEST(NB_ProtocolQuery_ReportsTheProtocolVersion) {
   char line[64];
   ninabridge::formatProtocol(line, sizeof line);
   CHECK_EQ_STR(line, "<P|protocol:1|>");
+}
+
+TEST(NB_RelativeMove_ParsesArcminutesOnBothAxes) {
+  // $R= is the host-side move of the Alpaca contract: arcminutes, both axes, backlash by the board.
+  auto r = ninabridge::parse("$R=-1.25,0.5");
+  CHECK(r.kind == Kind::RelativeMove);
+  CHECK_NEAR(r.a, -1.25, 1e-9);
+  CHECK_NEAR(r.b, 0.5, 1e-9);
+  CHECK(ninabridge::parse("$R=0,0").kind == Kind::RelativeMove);
+  for (const char *line : {"$R=1", "$R=nan,0", "$R=1,inf", "$R=a,b", "$R="}) {
+    CHECK(ninabridge::parse(line).kind == Kind::Invalid);
+  }
+  CHECK(ninabridge::parse("$R?").kind == Kind::RelativeQuery);
+  CHECK(ninabridge::parse("$I?").kind == Kind::IdentityQuery);
+}
+
+TEST(NB_RelativeStatus_IsOneLine_WithStateCommandedArcminutesAndReason) {
+  ninabridge::RelativeStatus s;
+  s.state = "failed";
+  s.azArcmin = -1.25;
+  s.altArcmin = 0.5;
+  s.reason = "timeout | ALT (Y)";
+  char line[160];
+  ninabridge::formatRelative(s, line, sizeof line);
+  CHECK_EQ_STR(line, "<R|state:failed|az:-1.25|alt:0.50|reason:timeout / ALT (Y)|>");
+}
+
+TEST(NB_Identity_CarriesMacBoardAndFirmware) {
+  char line[96];
+  ninabridge::formatIdentity("A1:B2:C3:D4:E5:F6", "fysetc_e4", "1.3.7", line, sizeof line);
+  CHECK_EQ_STR(line, "<I|mac:A1:B2:C3:D4:E5:F6|board:fysetc_e4|fw:1.3.7|>");
 }
